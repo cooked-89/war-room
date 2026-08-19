@@ -2264,6 +2264,7 @@ const state = {
   star:new Set(), avoid:new Set(),
   league:"espn10", teams:10, slot:1, rounds:15, sim:true,
   sortBy:"adp", useLiveAdp:false,
+  tradeOut:new Set(), tradeIn:new Set(),
   seed:String(Math.floor(Math.random()*1e9)),  // fixes the AI teams' temperaments
   picks:[]   // {playerId, team (0-indexed), overall}
 };
@@ -3159,6 +3160,12 @@ function renderTeam(){
     ${offBoardNote()}
     ${draftGrade()}
     ${byeStrip()}
+    <details class="card" id="tradeCard" style="margin-bottom:16px">
+      <summary class="card-h" style="cursor:pointer; list-style:none">
+        <h3>Trade evaluator</h3><span class="eyebrow">judged on your lineup</span>
+      </summary>
+      <div class="card-b" id="tradeOut"></div>
+    </details>
     <div class="card">
       <div class="card-h"><h3>Bench</h3><span class="eyebrow">${bench.length}</span></div>
       <div class="card-b"><div class="roster">${
@@ -3168,6 +3175,7 @@ function renderTeam(){
           <span class="num faint" style="font-size:11.5px">bye ${p.bye??"—"}</span></div>`).join("")
         : `<p class="muted" style="margin:0">Empty.</p>`}</div></div>
     </div>`;
+  renderTrade();
 }
 
 /* Some leagues require more of a position than the top-200 ADP board even ranks —
@@ -3468,6 +3476,121 @@ function byeStrip(){
     "</div></div>";
 }
 
+/* ---------- trade evaluator ----------
+   Totalling value on each side is the obvious approach and the wrong one: a roster
+   only scores from the players it STARTS. Two good backs behind an already-good
+   starter are worth far less than the raw numbers suggest, which is exactly why
+   2-for-1 trades that look lopsided on paper often are not. So the verdict here is
+   the change to your best starting lineup, with total value shown alongside as
+   depth context rather than as the answer. */
+function evaluateTrade(){
+  const roster = rosterOf(myIdx());
+  const out = roster.filter(function(p){ return state.tradeOut.has(p.id); });
+  const inc = PLAYERS.filter(function(p){ return state.tradeIn.has(p.id); });
+  if(!out.length && !inc.length) return null;
+
+  const after = roster.filter(function(p){ return !state.tradeOut.has(p.id); }).concat(inc);
+  const before = bestLineup(roster), post = bestLineup(after);
+
+  const sumVor = function(list){
+    return Math.round(list.reduce(function(a,p){ return a + (p.vorp===null?0:p.vorp); }, 0) * 10) / 10;
+  };
+
+  /* Does the roster still satisfy the league's requirements afterwards? */
+  const shortfalls = [];
+  Object.keys(NEED).forEach(function(pos){
+    const req = NEED[pos] || 0;
+    if(!req) return;
+    const have = after.filter(function(p){ return p.pos===pos; }).length;
+    if(have < req) shortfalls.push((req-have) + " short at " + POS_LABEL[pos]);
+  });
+
+  return {
+    out:out, inc:inc,
+    startersBefore:before.points, startersAfter:post.points,
+    startersDelta: Math.round((post.points - before.points) * 10) / 10,
+    vorOut:sumVor(out), vorIn:sumVor(inc),
+    vorDelta: Math.round((sumVor(inc) - sumVor(out)) * 10) / 10,
+    countDelta: inc.length - out.length,
+    shortfalls: shortfalls
+  };
+}
+
+function renderTrade(){
+  const host = $("#tradeOut");
+  if(!host) return;
+  const roster = rosterOf(myIdx());
+  if(!roster.length){
+    host.innerHTML = '<p class="muted" style="margin:0; font-size:13px">Draft a team first.</p>';
+    return;
+  }
+  const chip = function(p, on, act){
+    return '<button class="btn sm" data-' + act + '="' + p.id + '" style="' +
+      (on ? "background:var(--gold); border-color:var(--gold); color:#12150F; font-weight:600" : "") +
+      '">' + POS_LABEL[p.pos] + " " + esc(p.name.split(" ").slice(-1)[0]) +
+      (p.vorp===null ? "" : " " + (p.vorp>0?"+":"") + p.vorp.toFixed(0)) + "</button>";
+  };
+
+  const mine = roster.slice().sort(function(a,b){
+    return (b.vorp===null?-99:b.vorp) - (a.vorp===null?-99:a.vorp); });
+  const q = ($("#tradeSearch") ? $("#tradeSearch").value : "").toLowerCase().trim();
+  const taken = takenIds();
+  const others = q
+    ? PLAYERS.filter(function(p){
+        return !state.tradeOut.has(p.id) && roster.indexOf(p) < 0 &&
+               p.name.toLowerCase().indexOf(q) >= 0;
+      }).slice(0, 8)
+    : PLAYERS.filter(function(p){ return state.tradeIn.has(p.id); });
+
+  const ev = evaluateTrade();
+  let verdict = '<p class="muted" style="margin:10px 0 0; font-size:13px">Pick players to send and receive.</p>';
+  if(ev){
+    const d = ev.startersDelta;
+    const cls = d > 2 ? "good" : (d < -2 ? "bad" : "muted");
+    const word = d > 2 ? "Improves your lineup" : (d < -2 ? "Weakens your lineup" : "Roughly neutral");
+    verdict =
+      '<div style="display:flex; gap:18px; flex-wrap:wrap; align-items:baseline; margin-top:12px">' +
+        '<div><div class="eyebrow">starting lineup</div><div class="' + cls +
+          '" style="font-family:var(--display); font-size:26px">' + (d>=0?"+":"") + d.toFixed(0) + "</div></div>" +
+        '<div><div class="eyebrow">total value</div><div class="' + (ev.vorDelta>=0?"good":"bad") +
+          '" style="font-family:var(--display); font-size:26px">' + (ev.vorDelta>=0?"+":"") +
+          ev.vorDelta.toFixed(0) + "</div></div>" +
+        '<div style="flex:1; min-width:220px"><div class="eyebrow">' + word + "</div>" +
+          '<div class="faint" style="font-size:12.5px">' +
+          ev.startersBefore.toFixed(0) + " → " + ev.startersAfter.toFixed(0) + " projected starter points" +
+          (ev.countDelta !== 0
+            ? " · roster " + (ev.countDelta>0?"grows":"shrinks") + " by " + Math.abs(ev.countDelta)
+            : "") +
+          "</div></div>" +
+      "</div>" +
+      (ev.vorDelta > 8 && d <= 2
+        ? '<div class="alert" style="margin-top:10px">You gain value on paper but not in your lineup — ' +
+          "the incoming player would sit behind someone you already start. Depth has worth, just less than the totals suggest.</div>"
+        : "") +
+      (d > 8 && ev.vorDelta < 0
+        ? '<div class="alert" style="margin-top:10px">You give up more total value than you get, yet your lineup improves — ' +
+          "this is the shape of a good consolidation trade.</div>"
+        : "") +
+      (ev.shortfalls.length
+        ? '<div class="alert hot" style="margin-top:10px"><b>Illegal roster afterwards:</b> ' +
+          esc(ev.shortfalls.join(", ")) + ".</div>"
+        : "");
+  }
+
+  host.innerHTML =
+    '<div class="eyebrow" style="margin-bottom:6px">You send</div>' +
+    '<div style="display:flex; gap:6px; flex-wrap:wrap">' +
+      mine.map(function(p){ return chip(p, state.tradeOut.has(p.id), "tout"); }).join("") + "</div>" +
+    '<div class="eyebrow" style="margin:14px 0 6px">You receive</div>' +
+    '<input type="text" id="tradeSearch" placeholder="Search any player…" value="' + esc(q) +
+      '" style="width:100%; margin-bottom:7px">' +
+    '<div style="display:flex; gap:6px; flex-wrap:wrap">' +
+      (others.length ? others.map(function(p){ return chip(p, state.tradeIn.has(p.id), "tin"); }).join("")
+                     : '<span class="faint" style="font-size:12.5px">Search to add someone.</span>') + "</div>" +
+    verdict +
+    (ev ? '<button class="btn sm" id="tradeClear" style="margin-top:12px">Clear</button>' : "");
+}
+
 /* ---------- Depth Charts ---------- */
 function renderDepth(){
   const q = ($("#dq").value||"").toLowerCase().trim();
@@ -3595,6 +3718,23 @@ $("#tagfilter").addEventListener("click",e=>{
   renderIntel();
 });
 $("#dq").addEventListener("input",renderDepth);
+document.getElementById("p-team").addEventListener("click",function(e){
+  const o=e.target.closest("[data-tout]"), i=e.target.closest("[data-tin]");
+  const c=e.target.closest("#tradeClear");
+  if(c){ state.tradeOut.clear(); state.tradeIn.clear(); renderTrade(); return; }
+  if(o){ const id=+o.dataset.tout;
+    state.tradeOut.has(id)?state.tradeOut.delete(id):state.tradeOut.add(id); renderTrade(); }
+  if(i){ const id=+i.dataset.tin;
+    state.tradeIn.has(id)?state.tradeIn.delete(id):state.tradeIn.add(id); renderTrade(); }
+});
+document.getElementById("p-team").addEventListener("input",function(e){
+  if(e.target && e.target.id==="tradeSearch"){
+    const v=e.target.value, pos=e.target.selectionStart;
+    renderTrade();
+    const f=document.getElementById("tradeSearch");
+    if(f){ f.value=v; f.focus(); try{ f.setSelectionRange(pos,pos); }catch(err){} }
+  }
+});
 (function(){
   const sel = $("#weekPick");
   for(let w=1; w<=18; w++){
