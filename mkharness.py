@@ -874,6 +874,44 @@ harness = r'''
     if(draftIdFor("sleeper12")!==before) throw new Error("junk payload mutated saved settings");
   });
 
+
+  step("cbs-game-bonus-is-calibrated",function(){
+    /* Measured from 2025: the ladder pays quarterbacks ~2.9 pts/game and tight ends
+       ~0.2. The model must reproduce that shape, and must not touch other leagues. */
+    if(Math.abs(bonusPerGame("QB",237)-2.75)>0.01) throw new Error("QB anchor off");
+    if(Math.abs(bonusPerGame("TE",60)-0.29)>0.01) throw new Error("TE anchor off");
+    if(bonusPerGame("QB",300) <= bonusPerGame("QB",262)) throw new Error("curve must keep rising");
+    if(bonusPerGame("QB",0)!==0) throw new Error("zero yards should pay zero");
+    if(bonusPerGame("XX",200)!==0) throw new Error("unknown position should pay zero");
+    /* Compare each position at yardage it actually produces, not at a shared number
+       no receiver has ever posted. */
+    if(!(bonusPerGame("QB",250) > bonusPerGame("WR",90)*2))
+      throw new Error("the ladder should favour quarterbacks heavily");
+    // and extrapolation must stay bounded well outside the measured range
+    if(bonusPerGame("WR",400) > 2.3) throw new Error("receiver curve runs away: "+bonusPerGame("WR",400));
+    if(bonusPerGame("QB",900) > 6.1) throw new Error("QB curve runs away");
+    if(bonusPerGame("TE",500) > 1.3) throw new Error("TE curve runs away");
+
+    ensureLeagueOnly("espn10");
+    var allenEspn=PLAYERS.find(function(p){return p.name==="Josh Allen"}).proj;
+    ensureLeagueOnly("cbs12");
+    var allenCbs=PLAYERS.find(function(p){return p.name==="Josh Allen"}).proj;
+    var mcbCbs=PLAYERS.find(function(p){return p.name==="Trey McBride"});
+    ensureLeagueOnly("espn10");
+    var mcbEspn=PLAYERS.find(function(p){return p.name==="Trey McBride"});
+    var qbGain=allenCbs-allenEspn;
+    var teGain=mcbCbs.proj-mcbEspn.proj;
+    if(qbGain < 60) throw new Error("CBS QB gain only "+qbGain.toFixed(0)+" - bonus not applied?");
+    if(teGain > 12) throw new Error("tight end gained "+teGain.toFixed(0)+" - bonus far too generous");
+    log.push("   (CBS ladder: Allen +"+qbGain.toFixed(0)+" vs ESPN, McBride +"+teGain.toFixed(0)+")");
+  });
+
+  step("bonus-does-not-leak-into-other-leagues",function(){
+    ["espn10","mfl12","sleeper12"].forEach(function(k){
+      if(SCORING[k].gameBonus) throw new Error(k+" should not use the CBS ladder");
+    });
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;

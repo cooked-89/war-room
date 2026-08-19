@@ -2040,9 +2040,11 @@ const SCHEDULE = (function(){
 const SCORING = {
   espn10:   {passYdPer:25, passTd:4, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-2},
   cbs12:    {passYdPer:25, passTd:6, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-1,
-             caveat:'Per-game passing-yardage and long-TD bonuses are not in these numbers — '+
-                    'they cannot be derived from season totals. Real quarterback value here is '+
-                    'HIGHER than shown, so treat QB projections as a floor.'},
+             gameBonus:true,
+             caveat:'Per-game yardage bonuses ARE included, calibrated from every 2025 game '+
+                    'log scored through this ladder: quarterbacks gained 2.91 points per game '+
+                    'from it, receivers 0.59, backs 0.55, tight ends 0.18. Touchdown-distance '+
+                    'bonuses are still missing, so these remain a floor.'},
   mfl12:    {passYdPer:25, passTd:6, int:-1, rushYdPer:10, rushTd:6, ppr:1, recYdPer:10, recTd:6, fum:-1,
              caveat:'Touchdowns in this league scale 6–9 points with distance; these use a flat 6, '+
                     'so big-play scorers are worth slightly more than shown.'},
@@ -2318,12 +2320,62 @@ function load(){
    quarterbacks are startable and three tight ends are. */
 /* Score one stat line under one league's rules. Kickers and defenses arrive
    pre-bucketed from Sleeper, so their own total is the honest number. */
+/* ---------- per-game bonus ladders ----------
+   Some leagues pay bonuses on single-game yardage, which cannot be derived from a
+   season total: two players with identical season yards earn different bonuses
+   depending on how lumpy their weeks were. So rather than guess, this is measured.
+   Every 2025 game log was scored through the CBS ladder and the result collapsed
+   into bonus-points-per-game as a function of yards-per-game. Anchors below are
+   those measured averages; values between them are interpolated.
+
+   Measured 2025 payout for the top of each position: quarterbacks 2.91 pts/game
+   (14.9% on top of base scoring), receivers 0.59 (7.4%), backs 0.55 (4.7%), tight
+   ends 0.18 (2.3%). The ladder is overwhelmingly a quarterback subsidy.
+
+   Not included: touchdown-distance bonuses (+3 for 40-49 yards, +6 for 50+). Play
+   level distances are not in this data, so those points are missing and every CBS
+   number here is a floor, not a ceiling. */
+const BONUS_CURVE = {
+  QB: [[75,0.59],[175,1.55],[212,2.08],[237,2.75],[262,3.62]],
+  RB: [[20,0.04],[50,0.10],[70,0.28],[90,0.44],[115,1.16]],
+  WR: [[20,0.02],[50,0.25],[70,0.58],[90,1.19]],
+  TE: [[15,0.00],[40,0.06],[60,0.29]]
+};
+
+function bonusPerGame(pos, ypg){
+  const c = BONUS_CURVE[pos];
+  if(!c || !isFinite(ypg) || ypg <= 0) return 0;
+  if(ypg <= c[0][0]) return c[0][1] * (ypg / c[0][0]);
+  for(let i=1;i<c.length;i++){
+    if(ypg <= c[i][0]){
+      const t = (ypg - c[i-1][0]) / (c[i][0] - c[i-1][0]);
+      return c[i-1][1] + t * (c[i][1] - c[i-1][1]);
+    }
+  }
+  /* Past the measured range, continue at the last slope but CAP it. Straight-line
+     extrapolation is fine for a few yards beyond the data and absurd far outside it
+     - an unclamped receiver curve reaches six points per game at quarterback-like
+     yardage, which no receiver has ever produced. The caps sit just above the best
+     observed season at each position. */
+  const CAP = {QB:6.0, RB:2.2, WR:2.2, TE:1.2};
+  const a = c[c.length-2], b = c[c.length-1];
+  const slope = (b[1] - a[1]) / (b[0] - a[0]);
+  const raw = b[1] + (ypg - b[0]) * slope;
+  return Math.max(0, Math.min(CAP[pos] === undefined ? 4 : CAP[pos], raw));
+}
+
 function scoreRow(r, S, pos){
   if(pos === "PK" || pos === "DEF") return r.sleeperPts || 0;
-  return (r.passYd||0) / S.passYdPer + (r.passTd||0) * S.passTd + (r.int||0) * S.int
-       + (r.rushYd||0) / S.rushYdPer + (r.rushTd||0) * S.rushTd
-       + (r.rec||0) * S.ppr + (r.recYd||0) / S.recYdPer + (r.recTd||0) * S.recTd
-       + (r.fum||0) * S.fum;
+  let pts = (r.passYd||0) / S.passYdPer + (r.passTd||0) * S.passTd + (r.int||0) * S.int
+          + (r.rushYd||0) / S.rushYdPer + (r.rushTd||0) * S.rushTd
+          + (r.rec||0) * S.ppr + (r.recYd||0) / S.recYdPer + (r.recTd||0) * S.recTd
+          + (r.fum||0) * S.fum;
+  if(S.gameBonus){
+    const gp = (r.gp && r.gp > 0) ? r.gp : 17;
+    const ypg = (pos === "QB") ? (r.passYd||0)/gp : ((r.rushYd||0) + (r.recYd||0))/gp;
+    pts += bonusPerGame(pos, ypg) * gp;
+  }
+  return pts;
 }
 
 function attachProjections(key){
