@@ -2733,10 +2733,15 @@ function refreshFpBookmarklet(){
      Column layouts differ per position, so each is mapped explicitly. */
   f.value =
     "javascript:(function(){try{" +
-    "var P=[['qb',{py:2,pt:3,i:4,ry:6,rt:7,f:8}]," +
-    "['rb',{ry:1,rt:2,rc:3,cy:4,ct:5,f:6}]," +
-    "['wr',{rc:1,cy:2,ct:3,ry:5,rt:6,f:7}]," +
-    "['te',{rc:1,cy:2,ct:3,f:4}]];" +
+    /* Column order differs per position and the cells are read after dropping the
+       player cell, so these indices are zero-based against the stats only. Verified
+       against the live tables - an earlier off-by-one on WR and TE read receiving
+       yards as receptions. The last index is fantasy points, used only to drop the
+       long tail of players with no projection. */
+    "var P=[['qb',{py:2,pt:3,i:4,ry:6,rt:7,f:8},9]," +
+    "['rb',{ry:1,rt:2,rc:3,cy:4,ct:5,f:6},7]," +
+    "['wr',{rc:0,cy:1,ct:2,ry:4,rt:5,f:6},7]," +
+    "['te',{rc:0,cy:1,ct:2,f:3},4]];" +
     "var out=[];" +
     "P.forEach(function(pp){" +
     "var x=new XMLHttpRequest();" +
@@ -2748,6 +2753,7 @@ function refreshFpBookmarklet(){
     "var m=lab.match(/\s([A-Z]{2,3})$/);if(!m)return;" +
     "var n=[].slice.call(td).slice(1).map(function(c){" +
     "return parseFloat(c.textContent.replace(/,/g,''))||0;});" +
+    "if((n[pp[2]]||0)<20)return;" +
     "var o={n:lab.slice(0,m.index).trim(),p:pp[0].toUpperCase()};" +
     "for(var k in pp[1])o[k]=n[pp[1][k]];" +
     "out.push(o);});});" +
