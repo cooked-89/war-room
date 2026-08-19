@@ -360,6 +360,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
         <option value="blend">Both, averaged</option>
         <option value="sleeper">Sleeper only</option>
         <option value="fp">FantasyPros only</option>
+        <option value="fbg">Footballguys only</option>
       </select>
     </label>
     <label class="fld">ADP
@@ -485,6 +486,16 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
                      border:1px solid var(--line-2); border-radius:6px;
                      background:var(--surface-2); color:var(--ink-2)">
             <button class="btn sm" id="fpCopy" style="margin-top:7px">Copy projections bookmarklet</button>
+            <p class="faint" style="margin:10px 0 6px; font-size:12.5px">
+              Footballguys works the same way but loads one position at a time. Open their
+              projections page, pick a position, click this — then repeat for each position.
+              Each click adds to what is already stored.
+            </p>
+            <input id="fbgCode" readonly value=""
+              style="width:100%; font-family:var(--mono); font-size:10.5px; padding:6px;
+                     border:1px solid var(--line-2); border-radius:6px;
+                     background:var(--surface-2); color:var(--ink-2)">
+            <button class="btn sm" id="fbgCopy" style="margin-top:7px">Copy Footballguys bookmarklet</button>
           </div>
         </div>
       </details>
@@ -2489,7 +2500,7 @@ function attachProjections(key){
       ? PROJ.byDefTeam.get(p.team)
       : PROJ.byName.get(normName(p.name)+"|"+p.pos));
     p.projRow = r || null;
-    p.fpRow = fpLookup(p);
+    p.extraRows = extraLookups(p);
     p.inj = (live && live.inj) ? live.inj : "";
     /* The board's ADP is mock-draft consensus; Sleeper's is what actually happens in
        Sleeper drafts. Where they disagree sharply, one of them is stale or the market
@@ -2498,22 +2509,35 @@ function attachProjections(key){
                 Math.abs(p.adpLive - p.adpBoard) >= 1) ? p.adpLive : null;
     if(!r){ p.proj = null; return; }
     const sleeperPts = scoreRow(r, S, p.pos);
-    let fpPts = null;
-    if(p.fpRow && p.pos !== "PK" && p.pos !== "DEF"){
-      /* Their columns land in the same shape scoreRow expects. */
-      fpPts = scoreRow({passYd:p.fpRow.py||0, passTd:p.fpRow.pt||0, int:p.fpRow.i||0,
-                        rushYd:p.fpRow.ry||0, rushTd:p.fpRow.rt||0, rec:p.fpRow.rc||0,
-                        recYd:p.fpRow.cy||0, recTd:p.fpRow.ct||0, fum:p.fpRow.f||0,
-                        gp:17, sleeperPts:0}, S, p.pos);
+    p.projSleeper = Math.round(sleeperPts * 10) / 10;
+    p.projBySrc = {};
+    if(p.pos !== "PK" && p.pos !== "DEF"){
+      p.extraRows.forEach(function(e){
+        const x = e.row;
+        p.projBySrc[e.src] = Math.round(scoreRow(
+          {passYd:x.py||0, passTd:x.pt||0, int:x.i||0, rushYd:x.ry||0, rushTd:x.rt||0,
+           rec:x.rc||0, recYd:x.cy||0, recTd:x.ct||0, fum:x.f||0, gp:17, sleeperPts:0},
+          S, p.pos) * 10) / 10;
+      });
     }
     const mode = state.projSource || "blend";
-    p.projSleeper = Math.round(sleeperPts * 10) / 10;
-    p.projFp = fpPts === null ? null : Math.round(fpPts * 10) / 10;
+    const srcKeys = Object.keys(p.projBySrc);
     let use = sleeperPts;
-    if(fpPts !== null){
-      if(mode === "fp") use = fpPts;
-      else if(mode === "blend") use = (sleeperPts + fpPts) / 2;
+    if(mode !== "sleeper" && srcKeys.length){
+      if(mode === "blend"){
+        let sum = sleeperPts, n = 1;
+        srcKeys.forEach(function(k){ sum += p.projBySrc[k]; n++; });
+        use = sum / n;
+      } else if(p.projBySrc[mode] !== undefined){
+        use = p.projBySrc[mode];
+      }
     }
+    /* Spread across sources: a wide spread means the projection is contested and the
+       single number below it deserves less trust. */
+    const all = [sleeperPts].concat(srcKeys.map(function(k){ return p.projBySrc[k]; }));
+    p.projSpread = all.length > 1
+      ? Math.round((Math.max.apply(null, all) - Math.min.apply(null, all)) * 10) / 10
+      : 0;
     p.proj = Math.round(use * 10) / 10;
   });
 
@@ -2570,8 +2594,13 @@ function attachProjections(key){
 
    Stored as raw stat lines, never as points, so each league scores them under its own
    rules exactly like the Sleeper rows. */
-const FP_KEY = "warroom.fp.v1";
-let FPDATA = null;         // {at, byName:Map}
+const FP_KEY = "warroom.fp.v2";
+/* One bucket per outside source. Sleeper arrives over the network; the others are
+   handed over by bookmarklet because their tables only render for a real browser.
+   Keeping them separate means a re-import of one cannot wipe another, and the blend
+   is simply the mean of whatever is present for that player. */
+let EXTRA_PROJ = {};       // src -> {at, byName:Map, count}
+const SOURCE_LABEL = {fp:"FantasyPros", fbg:"Footballguys"};
 
 function fpRowsToMap(rows, at){
   const byName = new Map();
@@ -2582,14 +2611,30 @@ function fpRowsToMap(rows, at){
   return {at:at, byName:byName, count:rows.length, rows:rows};
 }
 
-function loadCachedFp(){
+function persistExtra(){
+  const dump = {};
+  Object.keys(EXTRA_PROJ).forEach(function(k){
+    dump[k] = {at:EXTRA_PROJ[k].at, rows:EXTRA_PROJ[k].rows};
+  });
+  try{ localStorage.setItem(FP_KEY, JSON.stringify(dump)); }catch(e){}
+}
+
+function sourcesLoaded(){
+  return Object.keys(EXTRA_PROJ).filter(function(k){ return EXTRA_PROJ[k].count; });
+}
+
+function loadCachedExtra(){
+  const out = {};
   try{
     const raw = localStorage.getItem(FP_KEY);
-    if(!raw) return null;
+    if(!raw) return out;
     const d = JSON.parse(raw);
-    if(!d || !Array.isArray(d.rows) || !d.rows.length) return null;
-    return fpRowsToMap(d.rows, d.at);
-  }catch(e){ return null; }
+    Object.keys(d || {}).forEach(function(k){
+      const e = d[k];
+      if(e && Array.isArray(e.rows) && e.rows.length) out[k] = fpRowsToMap(e.rows, e.at);
+    });
+  }catch(e){}
+  return out;
 }
 
 function applyProjHash(rawHash){
@@ -2605,11 +2650,18 @@ function applyProjHash(rawHash){
     return r && typeof r.n === "string" && typeof r.p === "string";
   }).slice(0, 1200);
   if(!clean.length) return {error:"No usable rows in that link."};
-  const at = Date.now();
-  try{ localStorage.setItem(FP_KEY, JSON.stringify({at:at, rows:clean})); }catch(e){}
-  FPDATA = fpRowsToMap(clean, at);
+  const srcKey = (typeof d.src === "string" && SOURCE_LABEL[d.src]) ? d.src : "fp";
+  /* Merge into whatever that source already has: Footballguys is scraped one
+     position at a time, so a second click must add rather than replace. */
+  const existing = EXTRA_PROJ[srcKey] ? EXTRA_PROJ[srcKey].rows.slice() : [];
+  const incoming = new Set(clean.map(function(r){ return normName(r.n) + "|" + r.p; }));
+  const merged = existing.filter(function(r){
+    return !incoming.has(normName(r.n) + "|" + r.p);
+  }).concat(clean);
+  EXTRA_PROJ[srcKey] = fpRowsToMap(merged, Date.now());
+  persistExtra();
   applyLeague(state.league);
-  return {applied: clean.length};
+  return {applied: clean.length, total: merged.length, src: SOURCE_LABEL[srcKey]};
 }
 
 function showProjResult(res){
@@ -2620,14 +2672,19 @@ function showProjResult(res){
   bar.className = "alert" + (res.error ? " hot" : "");
   bar.innerHTML = res.error
     ? '<span class="bad">' + esc(res.error) + "</span>"
-    : "<div><b>Second projection source loaded.</b> " + res.applied +
-      " players from the FantasyPros consensus. Projections now average both sources." +
-      "</div>";
+    : "<div><b>" + esc(res.src) + " projections loaded.</b> " + res.applied +
+      " players in this batch, " + res.total + " held for that source. Now averaging " +
+      (sourcesLoaded().length + 1) + " sources." + "</div>";
 }
 
-function fpLookup(p){
-  if(!FPDATA) return null;
-  return FPDATA.byName.get(normName(p.name) + "|" + p.pos) || null;
+function extraLookups(p){
+  const key = normName(p.name) + "|" + p.pos;
+  const out = [];
+  Object.keys(EXTRA_PROJ).forEach(function(k){
+    const hit = EXTRA_PROJ[k].byName.get(key);
+    if(hit) out.push({src:k, row:hit});
+  });
+  return out;
 }
 
 /* ---------- live data ----------
@@ -2726,6 +2783,44 @@ function renderCountdown(key){
   el.innerHTML = '<span class="muted">Draft in ' + c.days + ' day' + (c.days===1?"":"s") + ".</span>";
 }
 
+function refreshFbgBookmarklet(){
+  const f = $("#fbgCode");
+  if(!f) return;
+  /* Their table repeats TD and YDS under several groups - Rushing, Receiving, Kick
+     Return, Punt Return - so counting occurrences reads the wrong column and silently
+     lands on the empty return groups. The grouped header row carries colspans, so
+     expanding it tells every column which group it belongs to. That is exact rather
+     than inferred, and it survives a layout change. */
+  f.value =
+    "javascript:(function(){try{" +
+    "var t=document.getElementById('projections_table');" +
+    "if(!t){alert('Open the Footballguys projections page first.');return;}" +
+    "var g=[];" +
+    "[].slice.call(t.querySelectorAll('thead tr:first-child th')).forEach(function(h){" +
+    "var s=parseInt(h.getAttribute('colspan')||'1',10);" +
+    "for(var i=0;i<s;i++)g.push(h.innerText.trim().toUpperCase());});" +
+    "var hs=[].slice.call(t.querySelectorAll('thead tr:last-child th'))" +
+    ".map(function(h){return h.innerText.trim().toUpperCase();});" +
+    "var rows=[];" +
+    "t.querySelectorAll('tbody tr').forEach(function(tr){" +
+    "var c=[].slice.call(tr.querySelectorAll('td,th'));if(c.length<6)return;" +
+    "var b=c[1].querySelector('b');var nm=b?b.innerText.trim():c[1].innerText.trim();" +
+    "var pos=c[2].innerText.trim().toUpperCase();" +
+    "if(['QB','RB','WR','TE'].indexOf(pos)<0)return;" +
+    "var o={n:nm,p:pos,py:0,pt:0,i:0,ry:0,rt:0,rc:0,cy:0,ct:0,f:0};" +
+    "for(var k=3;k<hs.length;k++){" +
+    "var grp=g[k]||'',h=hs[k];" +
+    "var v=parseFloat((c[k]||{innerText:''}).innerText.replace(/,/g,''))||0;" +
+    "if(grp==='PASSING'){if(h==='YDS')o.py=v;else if(h==='TD')o.pt=v;else if(h==='INT')o.i=-v;}" +
+    "else if(grp==='RUSHING'){if(h==='YDS')o.ry=v;else if(h==='TD')o.rt=v;}" +
+    "else if(grp==='RECEIVING'){if(h==='YDS')o.cy=v;else if(h==='TD')o.ct=v;else if(h==='REC')o.rc=v;}}" +
+    "rows.push(o);});" +
+    "if(!rows.length){alert('No rows found - pick a position first.');return;}" +
+    "window.open('" + location.origin + location.pathname +
+    "#proj='+encodeURIComponent(JSON.stringify({src:'fbg',rows:rows})),'warroom');" +
+    "}catch(e){alert('Footballguys sync failed: '+e.message)}})()";
+}
+
 function refreshFpBookmarklet(){
   const f = $("#fpCode");
   if(!f) return;
@@ -2758,7 +2853,7 @@ function refreshFpBookmarklet(){
     "for(var k in pp[1])o[k]=n[pp[1][k]];" +
     "out.push(o);});});" +
     "window.open('" + location.origin + location.pathname +
-    "#proj='+encodeURIComponent(JSON.stringify({rows:out})),'warroom');" +
+    "#proj='+encodeURIComponent(JSON.stringify({src:'fp',rows:out})),'warroom');" +
     "}catch(e){alert('Projection sync failed: '+e.message)}})()";
 }
 
@@ -2854,7 +2949,7 @@ function dataStamp(){
               : new Date(LIVEDATA.at).toLocaleString());
   el.innerHTML = '<span class="good">Live projections</span> <span class="faint">from Sleeper, '
     + when + " · " + LIVEDATA.rows.length + " players"
-    + " · projections " + (FPDATA ? "Sleeper + FantasyPros" : "Sleeper only")
+    + " · projections " + ("Sleeper" + (sourcesLoaded().length ? " + " + sourcesLoaded().map(function(k){return SOURCE_LABEL[k];}).join(" + ") : " only"))
     + " · ADP " + ({blend:"averaged across both markets",
                         board:"from mock-draft consensus",
                         sleeper:"from Sleeper drafts"}[state.adpSource || "blend"]) + "</span>";
@@ -4692,6 +4787,12 @@ $("#draftIdSave").addEventListener("click",function(){
     ? '<span class="good">Draft ID saved on this device.</span>'
     : '<span class="faint">Draft ID cleared.</span>';
 });
+$("#fbgCopy").addEventListener("click",function(){
+  const f=$("#fbgCode"); f.select(); f.setSelectionRange(0,99999);
+  try{ document.execCommand("copy"); this.textContent="Copied"; }
+  catch(e){ this.textContent="Select it and copy"; }
+  setTimeout(function(){ $("#fbgCopy").textContent="Copy Footballguys bookmarklet"; },1600);
+});
 $("#fpCopy").addEventListener("click",function(){
   const f=$("#fpCode"); f.select(); f.setSelectionRange(0,99999);
   try{ document.execCommand("copy"); this.textContent="Copied"; }
@@ -4747,6 +4848,7 @@ function applyLeague(key){
     ? "while you are on the MyFantasyLeague site"
     : "during the draft";
   refreshFpBookmarklet();
+  refreshFbgBookmarklet();
   const dIn = $("#draftIdIn");
   if(dIn) dIn.value = draftIdFor(key);
   const wIn = $("#draftWhenIn");
@@ -4853,7 +4955,7 @@ document.addEventListener("keydown", function(e){
 /* ---------- boot ---------- */
 load();
 LIVEDATA = loadCachedLive();      // instant, offline-safe; network refresh follows
-FPDATA   = loadCachedFp();
+EXTRA_PROJ = loadCachedExtra();
 const savedPicks = state.picks;
 applyLeague(state.league);
 state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });

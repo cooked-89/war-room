@@ -1118,39 +1118,6 @@ harness = r'''
   });
 
 
-  step("second-projection-source-blends",function(){
-    ensureLeagueOnly("espn10");
-    var t=PLAYERS.find(function(p){return p.pos==="RB" && p.proj!==null;});
-    var sleeperOnly=t.proj;
-    // hand over a FantasyPros-shaped row that is deliberately more bullish
-    var payload={rows:[{n:t.name,p:"RB",ry:2000,rt:20,rc:80,cy:800,ct:5,f:1}]};
-    var r=applyProjHash("#proj="+encodeURIComponent(JSON.stringify(payload)));
-    if(!r||r.error) throw new Error("proj sync failed: "+(r&&r.error));
-    var after=PLAYERS.find(function(x){return x.name===t.name;});
-    if(after.projFp===null) throw new Error("FantasyPros row not attached");
-    if(!(after.projFp>after.projSleeper)) throw new Error("the bullish row should score higher");
-    var expect=Math.round((after.projSleeper+after.projFp)/2*10)/10;
-    if(Math.abs(after.proj-expect)>0.15)
-      throw new Error("blend wrong: "+after.proj+" vs "+expect);
-
-    state.projSource="sleeper"; applyLeague("espn10");
-    var s=PLAYERS.find(function(x){return x.name===t.name;});
-    if(Math.abs(s.proj-sleeperOnly)>0.15) throw new Error("sleeper-only mode wrong");
-
-    state.projSource="fp"; applyLeague("espn10");
-    var f=PLAYERS.find(function(x){return x.name===t.name;});
-    if(Math.abs(f.proj-f.projFp)>0.15) throw new Error("fp-only mode wrong");
-
-    // a player FantasyPros does not cover must keep its Sleeper number
-    var solo=PLAYERS.find(function(x){return x.fpRow===null && x.proj!==null;});
-    if(solo && solo.proj!==solo.projSleeper) throw new Error("uncovered player changed");
-
-    state.projSource="blend"; FPDATA=null; applyLeague("espn10");
-    var back=PLAYERS.find(function(x){return x.name===t.name;});
-    if(Math.abs(back.proj-sleeperOnly)>0.15) throw new Error("no fallback without FP data");
-    log.push("   (proj blend: sleeper "+sleeperOnly.toFixed(0)+", fp "+after.projFp.toFixed(0)+", blended "+expect.toFixed(0)+")");
-  });
-
   step("proj-hash-rejects-junk",function(){
     ensureLeagueOnly("espn10");
     if(applyProjHash("#draft=espn10:x")!==null) throw new Error("grabbed a draft hash");
@@ -1172,6 +1139,63 @@ harness = r'''
     });
     if(v.indexOf("#proj=")<0) throw new Error("does not hand data back");
     if(v.indexOf("XMLHttpRequest")<0) throw new Error("should use a same-origin request");
+  });
+
+
+  step("multiple-projection-sources-average",function(){
+    ensureLeagueOnly("espn10");
+    EXTRA_PROJ={}; applyLeague("espn10");
+    var t=PLAYERS.find(function(p){return p.pos==="RB" && p.proj!==null;});
+    var solo=t.proj;
+
+    // two outside sources, one bullish one bearish
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify(
+      {src:"fp", rows:[{n:t.name,p:"RB",ry:2000,rt:20,rc:80,cy:800,ct:5,f:1}]})));
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify(
+      {src:"fbg",rows:[{n:t.name,p:"RB",ry:400,rt:2,rc:10,cy:80,ct:0,f:1}]})));
+    var a=PLAYERS.find(function(x){return x.name===t.name;});
+    if(Object.keys(a.projBySrc).length!==2) throw new Error("expected 2 outside sources");
+    var mean=(a.projSleeper+a.projBySrc.fp+a.projBySrc.fbg)/3;
+    if(Math.abs(a.proj-Math.round(mean*10)/10)>0.2)
+      throw new Error("blend should be the mean of 3: "+a.proj+" vs "+mean.toFixed(1));
+    if(!(a.projSpread>0)) throw new Error("spread should be positive when sources differ");
+
+    state.projSource="fbg"; applyLeague("espn10");
+    var b=PLAYERS.find(function(x){return x.name===t.name;});
+    if(Math.abs(b.proj-b.projBySrc.fbg)>0.2) throw new Error("fbg-only mode wrong");
+
+    state.projSource="blend"; EXTRA_PROJ={}; applyLeague("espn10");
+    var c=PLAYERS.find(function(x){return x.name===t.name;});
+    if(Math.abs(c.proj-solo)>0.2) throw new Error("should fall back to Sleeper alone");
+    if(c.projSpread!==0) throw new Error("single source should have no spread");
+    log.push("   (3-source blend verified, spread reported)");
+  });
+
+  step("re-importing-one-source-keeps-the-other",function(){
+    ensureLeagueOnly("espn10");
+    EXTRA_PROJ={};
+    var a=PLAYERS[0], b=PLAYERS[1];
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify(
+      {src:"fp", rows:[{n:a.name,p:a.pos,ry:500,rt:3,rc:20,cy:200,ct:1,f:0}]})));
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify(
+      {src:"fbg",rows:[{n:b.name,p:b.pos,ry:400,rt:2,rc:10,cy:100,ct:1,f:0}]})));
+    if(sourcesLoaded().length!==2) throw new Error("both sources should be held");
+    // a second fbg batch for a different player must ADD, not replace
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify(
+      {src:"fbg",rows:[{n:a.name,p:a.pos,ry:450,rt:2,rc:12,cy:120,ct:1,f:0}]})));
+    if(EXTRA_PROJ.fbg.count!==2) throw new Error("fbg batches should merge, got "+EXTRA_PROJ.fbg.count);
+    if(EXTRA_PROJ.fp.count!==1) throw new Error("fp source was disturbed");
+    EXTRA_PROJ={}; applyLeague("espn10");
+  });
+
+  step("fbg-bookmarklet-reads-headers-not-fixed-indices",function(){
+    ensureLeagueOnly("espn10");
+    var v=document.getElementById("fbgCode").value;
+    if(v.indexOf("projections_table")<0) throw new Error("does not target their table");
+    if(v.indexOf("thead")<0) throw new Error("should read the header row rather than assume columns");
+    if(v.indexOf("src:'fbg'")<0) throw new Error("payload not tagged as footballguys");
+    var fp=document.getElementById("fpCode").value;
+    if(fp.indexOf("src:'fp'")<0) throw new Error("fantasypros payload not tagged");
   });
 
   // ---- importer ----
