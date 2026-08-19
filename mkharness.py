@@ -1117,6 +1117,63 @@ harness = r'''
     log.push("   (ADP blend: board "+boardAdp.toFixed(0)+", live "+(boardAdp+40).toFixed(0)+", blended "+(boardAdp+20).toFixed(0)+")");
   });
 
+
+  step("second-projection-source-blends",function(){
+    ensureLeagueOnly("espn10");
+    var t=PLAYERS.find(function(p){return p.pos==="RB" && p.proj!==null;});
+    var sleeperOnly=t.proj;
+    // hand over a FantasyPros-shaped row that is deliberately more bullish
+    var payload={rows:[{n:t.name,p:"RB",ry:2000,rt:20,rc:80,cy:800,ct:5,f:1}]};
+    var r=applyProjHash("#proj="+encodeURIComponent(JSON.stringify(payload)));
+    if(!r||r.error) throw new Error("proj sync failed: "+(r&&r.error));
+    var after=PLAYERS.find(function(x){return x.name===t.name;});
+    if(after.projFp===null) throw new Error("FantasyPros row not attached");
+    if(!(after.projFp>after.projSleeper)) throw new Error("the bullish row should score higher");
+    var expect=Math.round((after.projSleeper+after.projFp)/2*10)/10;
+    if(Math.abs(after.proj-expect)>0.15)
+      throw new Error("blend wrong: "+after.proj+" vs "+expect);
+
+    state.projSource="sleeper"; applyLeague("espn10");
+    var s=PLAYERS.find(function(x){return x.name===t.name;});
+    if(Math.abs(s.proj-sleeperOnly)>0.15) throw new Error("sleeper-only mode wrong");
+
+    state.projSource="fp"; applyLeague("espn10");
+    var f=PLAYERS.find(function(x){return x.name===t.name;});
+    if(Math.abs(f.proj-f.projFp)>0.15) throw new Error("fp-only mode wrong");
+
+    // a player FantasyPros does not cover must keep its Sleeper number
+    var solo=PLAYERS.find(function(x){return x.fpRow===null && x.proj!==null;});
+    if(solo && solo.proj!==solo.projSleeper) throw new Error("uncovered player changed");
+
+    state.projSource="blend"; FPDATA=null; applyLeague("espn10");
+    var back=PLAYERS.find(function(x){return x.name===t.name;});
+    if(Math.abs(back.proj-sleeperOnly)>0.15) throw new Error("no fallback without FP data");
+    log.push("   (proj blend: sleeper "+sleeperOnly.toFixed(0)+", fp "+after.projFp.toFixed(0)+", blended "+expect.toFixed(0)+")");
+  });
+
+  step("proj-hash-rejects-junk",function(){
+    ensureLeagueOnly("espn10");
+    if(applyProjHash("#draft=espn10:x")!==null) throw new Error("grabbed a draft hash");
+    if(!applyProjHash("#proj=notjson").error) throw new Error("bad JSON accepted");
+    if(!applyProjHash("#proj="+encodeURIComponent(JSON.stringify({rows:[]}))).error)
+      throw new Error("empty rows accepted");
+    if(!applyProjHash("#proj="+encodeURIComponent(JSON.stringify({rows:[{bad:1}]}))).error)
+      throw new Error("malformed rows accepted");
+    FPDATA=null; applyLeague("espn10");
+  });
+
+  step("fp-bookmarklet-is-built",function(){
+    ensureLeagueOnly("espn10");
+    var v=document.getElementById("fpCode").value;
+    if(v.indexOf("fantasypros")>=0 && v.indexOf("/nfl/projections/")<0)
+      throw new Error("bookmarklet does not read the projections pages");
+    ["qb","rb","wr","te"].forEach(function(p){
+      if(v.indexOf("'"+p+"'")<0) throw new Error("missing position "+p);
+    });
+    if(v.indexOf("#proj=")<0) throw new Error("does not hand data back");
+    if(v.indexOf("XMLHttpRequest")<0) throw new Error("should use a same-origin request");
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;
