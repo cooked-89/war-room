@@ -277,7 +277,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
   /* drop the columns that don't earn their width on a 390px screen */
   table.board th:nth-child(6), table.board td:nth-child(6),
   table.board th:nth-child(7), table.board td:nth-child(7),
-  table.board th:nth-child(10), table.board td:nth-child(10){display:none}
+  table.board th:nth-child(11), table.board td:nth-child(11){display:none}
   table.board th, table.board td{padding:9px 7px}
   table.board{font-size:14px}
   .pname{display:inline-block}
@@ -358,7 +358,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
     <table class="board">
       <thead><tr>
         <th class="stripe"></th>
-        <th>ADP</th><th>Player</th><th>Pos</th><th>Tm</th><th>Bye</th><th>Tier</th><th title="Projected season points in THIS league's scoring">Proj</th><th title="Points above a freely available replacement at the same position">VOR</th><th>Intel</th><th></th>
+        <th>ADP</th><th>Player</th><th>Pos</th><th>Tm</th><th>Bye</th><th>Tier</th><th title="Projected season points in THIS league's scoring">Proj</th><th title="Points above a freely available replacement at the same position">VOR</th><th title="Opponent difficulty in this league's playoff weeks. More bars = softer.">Plyf</th><th>Intel</th><th></th>
       </tr></thead>
       <tbody id="boardBody"></tbody>
     </table>
@@ -776,6 +776,20 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       rebuilds instantly. Re-paste whenever you want to catch up.
     </p>
   </div>
+
+    <h2>Playoff schedules</h2>
+    <p>
+      Full-season strength of schedule barely separates teams — the spread across the league
+      is a few points. The weeks your league plays for money are a different story, and that
+      is where a schedule edge is actually worth drafting for.
+    </p>
+    <div id="sosOut"></div>
+    <p class="faint" style="font-size:12.5px">
+      Opponent quality is measured by each defense's projected fantasy output — a proxy for
+      how hard that defense is to play against. It cannot tell you a defense is tough on
+      running backs but soft on receivers; it is a tiebreaker between similar players, not a
+      reason to move someone up a round.
+    </p>
 
     <h2>Positional cliffs to memorize</h2>
     <div id="cliffOut"></div>
@@ -1929,6 +1943,52 @@ const PROJ = (function(){
 
 /* Each league's real scoring, read from its own settings page (Sleeper's came
    straight from its API). `passYdPer` is yards per point. */
+/* 2026 opponents by week, from Sleeper's public schedule. TEAM:wk1,wk2,... with an
+   empty slot for the bye. Cross-checks clean against the bye-week table above. */
+const SCHEDULE_RAW = `
+ARI:LAC,SEA,SF,NYG,DET,LAR,DEN,DAL,SEA,LAR,KC,WAS,PHI,,NYJ,NO,LV,SF
+ATL:PIT,CAR,GB,NO,BAL,CHI,SF,TB,CIN,KC,,MIN,DET,CLE,WAS,TB,NO,CAR
+BAL:IND,NO,DAL,TEN,ATL,CLE,CIN,BUF,JAX,LAC,CAR,HOU,,TB,PIT,CLE,CIN,PIT
+BUF:HOU,DET,LAC,NE,LAR,LV,,BAL,MIN,NYJ,MIA,KC,NE,GB,CHI,DEN,MIA,NYJ
+CAR:CHI,ATL,CLE,DET,,PHI,TB,GB,DEN,NO,BAL,TB,MIN,NO,CIN,PIT,SEA,ATL
+CHI:CAR,MIN,PHI,NYJ,GB,ATL,NE,SEA,TB,,NO,DET,JAX,MIA,BUF,GB,DET,MIN
+CIN:TB,HOU,PIT,JAX,MIA,,BAL,TEN,ATL,PIT,WAS,NO,CLE,KC,CAR,IND,BAL,CLE
+CLE:JAX,TB,CAR,PIT,NYJ,BAL,TEN,PIT,NO,HOU,,LV,CIN,ATL,NYG,BAL,IND,CIN
+DAL:NYG,WAS,BAL,HOU,TB,GB,PHI,ARI,IND,SF,TEN,PHI,SEA,,LAR,JAX,NYG,WAS
+DEN:KC,JAX,LAR,SF,LAC,SEA,ARI,KC,CAR,,LV,PIT,MIA,NYJ,LV,BUF,NE,LAC
+DET:NO,BUF,NYJ,CAR,ARI,,GB,MIN,MIA,NE,TB,CHI,ATL,TEN,MIN,NYG,CHI,GB
+GB:MIN,NYJ,ATL,TB,CHI,DAL,DET,CAR,NE,MIN,,LAR,NO,BUF,MIA,CHI,HOU,DET
+HOU:BUF,CIN,IND,DAL,TEN,JAX,NYG,,LAC,CLE,IND,BAL,PIT,WAS,JAX,PHI,GB,TEN
+IND:BAL,KC,HOU,WAS,PIT,TEN,MIN,JAX,DAL,MIA,HOU,NYG,,PHI,TEN,CIN,CLE,JAX
+JAX:CLE,DEN,NE,CIN,PHI,HOU,,IND,BAL,TEN,NYG,TEN,CHI,PIT,HOU,DAL,WAS,IND
+KC:DEN,IND,MIA,LV,,LAC,SEA,DEN,NYJ,ATL,ARI,BUF,LAR,CIN,NE,SF,LAC,LV
+LAC:ARI,LV,BUF,SEA,DEN,KC,,LAR,HOU,BAL,NYJ,NE,TB,LV,SF,MIA,KC,DEN
+LAR:SF,NYG,DEN,PHI,BUF,ARI,LV,LAC,WAS,ARI,,GB,KC,SF,DAL,SEA,TB,SEA
+LV:MIA,LAC,NO,KC,NE,BUF,LAR,NYJ,SF,SEA,DEN,CLE,,LAC,DEN,TEN,ARI,KC
+MIA:LV,SF,KC,MIN,CIN,,NYJ,NE,DET,IND,BUF,NYJ,DEN,CHI,GB,LAC,BUF,NE
+MIN:GB,CHI,TB,MIA,NO,,IND,DET,BUF,GB,SF,ATL,CAR,NE,DET,WAS,NYJ,CHI
+NE:SEA,PIT,JAX,BUF,LV,NYJ,CHI,MIA,GB,DET,,LAC,BUF,MIN,KC,NYJ,DEN,MIA
+NO:DET,BAL,LV,ATL,MIN,NYG,PIT,,CLE,CAR,CHI,CIN,GB,CAR,TB,ARI,ATL,TB
+NYG:DAL,LAR,TEN,ARI,WAS,NO,HOU,,PHI,WAS,JAX,IND,SF,SEA,CLE,DET,DAL,PHI
+NYJ:TEN,GB,DET,CHI,CLE,NE,MIA,LV,KC,BUF,LAC,MIA,,DEN,ARI,NE,MIN,BUF
+PHI:WAS,TEN,CHI,LAR,JAX,CAR,DAL,WAS,NYG,,PIT,DAL,ARI,IND,SEA,HOU,SF,NYG
+PIT:ATL,NE,CIN,CLE,IND,TB,NO,CLE,,CIN,PHI,DEN,HOU,JAX,BAL,CAR,TEN,BAL
+SEA:NE,ARI,WAS,LAC,SF,DEN,KC,CHI,ARI,LV,,SF,DAL,NYG,PHI,LAR,CAR,LAR
+SF:LAR,MIA,ARI,DEN,SEA,WAS,ATL,,LV,DAL,MIN,SEA,NYG,LAR,LAC,KC,PHI,ARI
+TB:CIN,CLE,MIN,GB,DAL,PIT,CAR,ATL,CHI,,DET,CAR,LAC,BAL,NO,ATL,LAR,NO
+TEN:NYJ,PHI,NYG,BAL,HOU,IND,CLE,CIN,,JAX,DAL,JAX,WAS,DET,IND,LV,PIT,HOU
+WAS:PHI,DAL,SEA,IND,NYG,SF,,PHI,LAR,NYG,CIN,ARI,TEN,HOU,ATL,MIN,JAX,DAL
+`.trim();
+
+const SCHEDULE = (function(){
+  const m = {};
+  SCHEDULE_RAW.split(String.fromCharCode(10)).forEach(function(line){
+    const p = line.split(':');
+    m[p[0]] = p[1].split(',');
+  });
+  return m;
+})();
+
 const SCORING = {
   espn10:   {passYdPer:25, passTd:4, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-2},
   cbs12:    {passYdPer:25, passTd:6, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-1,
@@ -1947,28 +2007,32 @@ const LEAGUES = {
     lineup:[["QB",1],["RB",2],["WR",2],["TE",1],["FLEX",1],["PK",1],["DEF",1]],
     need:{QB:1,RB:2,WR:2,TE:1,PK:1,DEF:1},
     aiNeed:{QB:1,RB:2,WR:2,TE:1,PK:1,DEF:1},
-    drop:[], source:"1,420 non-PPR mocks, Aug 9–16 2026" },
+    drop:[], playoffWeeks:[16,17], /* 15 regular-season matchups, then two playoff rounds */
+    source:"1,420 non-PPR mocks, Aug 9–16 2026" },
 
   cbs12:{ key:"cbs12", label:"CBS · 12-team standard", host:"CBS",
     teams:12, rounds:16, scoring:"Standard, 6-pt pass TD", raw:ADP_STD,
     lineup:[["QB",1],["RB",2],["WR",2],["TE",1],["PK",1],["DEF",1]],
     need:{QB:2,RB:2,WR:2,TE:2,PK:2,DEF:2},
     aiNeed:{QB:2,RB:2,WR:2,TE:1,PK:1,DEF:1},
-    drop:[], source:"1,420 non-PPR mocks, Aug 9–16 2026" },
+    drop:[], playoffWeeks:[15,16,17], /* commissioner's rules: last regular week is 14 */
+    source:"1,420 non-PPR mocks, Aug 9–16 2026" },
 
   mfl12:{ key:"mfl12", label:"MFL · 12-team PPR", host:"MyFantasyLeague",
     teams:12, rounds:12, scoring:"PPR, distance-scaled TDs", raw:ADP_PPR,
     lineup:[["QB",1],["RB",2],["WR",2],["FLEX",1],["PK",1],["DEF",1]],
     need:{QB:1,RB:2,WR:2,TE:0,PK:1,DEF:1},
     aiNeed:{QB:1,RB:2,WR:2,TE:0,PK:1,DEF:1},
-    drop:[], source:"6,565 PPR mocks, Aug 9–16 2026" },
+    drop:[], playoffWeeks:[15,16,17], /* not stated in the settings export - assumed */
+    source:"6,565 PPR mocks, Aug 9–16 2026" },
 
   sleeper12:{ key:"sleeper12", label:"Sleeper · 12-team superflex", host:"Sleeper",
     teams:12, rounds:14, scoring:"PPR superflex (2QB)", raw:ADP_2QB,
     lineup:[["QB",1],["RB",2],["WR",3],["TE",1],["FLEX",1],["SFLEX",1]],
     need:{QB:2,RB:2,WR:3,TE:1,PK:0,DEF:0},
     aiNeed:{QB:2,RB:2,WR:3,TE:1,PK:0,DEF:0},
-    drop:["PK","DEF"], source:"3,993 2QB mocks, Jul 17–Aug 16 2026",
+    drop:["PK","DEF"], playoffWeeks:[15,16,17], /* not stated in the league settings - assumed */
+    source:"3,993 2QB mocks, Jul 17–Aug 16 2026",
     liveFeed:"sleeper" }
 };
 
@@ -2207,6 +2271,7 @@ function attachProjections(key){
     REPLACEMENT[pos] = pool[idx].proj;
   });
 
+  computeSOS();
   PLAYERS.forEach(function(p){
     const base = REPLACEMENT[p.pos];
     p.vorp = (p.proj===null || base===null || base===undefined)
@@ -2335,7 +2400,7 @@ async function refreshLive(silent){
   try{
     LIVEDATA = await fetchLive();
     applyLeague(state.league);
-    renderCliffs(); renderAll();
+    renderCliffs(); renderSOS(); renderAll();
   }catch(e){
     const el = $("#dataMsg");
     if(el && !silent) el.innerHTML = '<span class="warn">Could not reach Sleeper — '
@@ -2343,6 +2408,62 @@ async function refreshLive(silent){
   }
   if(btn){ btn.disabled = false; btn.textContent = "Refresh"; }
   dataStamp();
+}
+
+/* ---------- strength of schedule ----------
+   Opponent quality is proxied by each defense's projected fantasy points: a defense
+   that scores well for fantasy managers is one that sacks, intercepts and keeps
+   points down, which is exactly what makes it a bad matchup for the offense facing
+   it. It is a proxy, not a per-position ranking — it cannot tell you a defense is
+   tough on receivers but soft on backs. Playoff weeks matter far more than the
+   season average: the full-year spread is narrow, the weeks 15-17 spread is not. */
+let SOS = {};
+function computeSOS(){
+  SOS = {};
+  const dst = {};
+  PLAYERS.forEach(function(p){ if(p.pos === "DEF" && p.proj !== null) dst[p.team] = p.proj; });
+  // the board may not carry every defense; fall back to the projection table
+  PROJ.byDefTeam.forEach(function(r, team){ if(dst[team] === undefined) dst[team] = r.sleeperPts; });
+  if(LIVEDATA) LIVEDATA.byDefTeam.forEach(function(r, team){ dst[team] = r.sleeperPts; });
+  const vals = Object.keys(dst).map(function(k){ return dst[k]; });
+  if(!vals.length) return;
+  const mean = vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+  const weeks = (LEAGUES[state.league].playoffWeeks) || [15,16,17];
+
+  Object.keys(SCHEDULE).forEach(function(team){
+    const games = SCHEDULE[team];
+    let sTot = 0, sN = 0, pTot = 0, pN = 0;
+    games.forEach(function(o, idx){
+      if(!o) return;                       // bye
+      const q = (dst[o] === undefined) ? mean : dst[o];
+      sTot += q; sN++;
+      if(weeks.indexOf(idx + 1) >= 0){ pTot += q; pN++; }
+    });
+    SOS[team] = {season: sN ? sTot/sN : null, playoff: pN ? pTot/pN : null};
+  });
+
+  // rank both, 1 = easiest, so a high number always means "harder"
+  ["season","playoff"].forEach(function(kind){
+    const ts = Object.keys(SOS).filter(function(t){ return SOS[t][kind] !== null; })
+                     .sort(function(a,b){ return SOS[a][kind] - SOS[b][kind]; });
+    ts.forEach(function(t,i){ SOS[t][kind+"Rank"] = i+1; });
+  });
+}
+
+/* 1 (brutal) to 5 (soft), for a compact display. */
+function sosGrade(team, kind){
+  const s = SOS[team];
+  if(!s || s[kind+"Rank"] === undefined) return null;
+  const r = s[kind+"Rank"];                 // 1 = easiest
+  return Math.max(1, Math.min(5, 6 - Math.ceil(r/6.4)));
+}
+function sosCell(team, kind){
+  const g = sosGrade(team, kind);
+  if(g === null) return '<span class="faint">—</span>';
+  const cls = g >= 4 ? "good" : (g <= 2 ? "bad" : "muted");
+  const label = ["", "brutal", "hard", "average", "favourable", "soft"][g];
+  return '<span class="' + cls + '" title="' + label + ' (rank ' +
+         SOS[team][kind+"Rank"] + ' of 32, 1 = easiest)">' + "▉".repeat(g) + "</span>";
 }
 
 /* ---------- draft helpers ---------- */
@@ -2541,6 +2662,7 @@ function renderBoard(){
       <td class="tiermark">T${p.tier}</td>
       <td class="num">${p.proj===null?'<span class="faint">—</span>':p.proj.toFixed(0)}</td>
       <td class="num">${vorpCell(p)}</td>
+      <td>${(p.pos==="PK"||p.pos==="DEF")?'<span class="faint">—</span>':sosCell(p.team,"playoff")}</td>
       <td>${tagChips(p)}</td>
       <td style="white-space:nowrap; text-align:right">
         <button class="iconbtn star ${state.star.has(p.id)?"on":""}" data-star="${p.id}" title="Watchlist">${state.star.has(p.id)?"★":"☆"}</button>
@@ -2665,6 +2787,11 @@ function renderDraft(){
       if(p.vorp !== null) bits.push(`<strong>${p.vorp>0?"+":""}${p.vorp.toFixed(0)}</strong> value`);
       bits.push(`${r.left} left in ${p.pos} tier ${p.tier}`);
       if(p.inj) bits.push(`<span class="bad">${esc(p.inj)}</span>`);
+      if(p.pos!=="PK" && p.pos!=="DEF"){
+        const g = sosGrade(p.team,"playoff");
+        if(g===5) bits.push('<span class="good">soft playoff schedule</span>');
+        else if(g===1) bits.push('<span class="bad">brutal playoff schedule</span>');
+      }
       if(state.star.has(p.id)) bits.push(`<span class="starred">on your watchlist</span>`);
       if(p.tags.length) bits.push(p.tags.join(" / "));
       return rowFor(p, i+1, bits.join(" · "));
@@ -2833,6 +2960,10 @@ function renderDepth(){
     };
     return `<div class="tcard">
       <h4>${t}<span class="bye">bye ${BYES[t]??"—"}</span></h4>
+      <div class="dline" style="margin:-4px 0 7px">
+        <span class="ord" style="width:auto">SOS</span>
+        <span class="faint" style="font-size:11.5px">season ${sosCell(t,"season")} · playoffs ${sosCell(t,"playoff")}</span>
+      </div>
       ${grp("QB")}${grp("RB")}${grp("WR")}${grp("TE")}
     </div>`;
   }).join("");
@@ -2855,6 +2986,28 @@ function renderIntel(){
 }
 
 /* ---------- Plan cliffs ---------- */
+function renderSOS(){
+  const el = $("#sosOut");
+  if(!el) return;
+  const weeks = LEAGUES[state.league].playoffWeeks || [15,16,17];
+  const teams = Object.keys(SOS).filter(function(t){ return SOS[t].playoff !== null; });
+  if(!teams.length){ el.innerHTML = ""; return; }
+  const easy = teams.slice().sort(function(a,b){ return SOS[a].playoff - SOS[b].playoff; }).slice(0,6);
+  const hard = teams.slice().sort(function(a,b){ return SOS[b].playoff - SOS[a].playoff; }).slice(0,6);
+  const line = function(list, cls){
+    return list.map(function(t){
+      return '<span class="' + cls + '" style="font-family:var(--mono); font-size:12px">' + t + "</span>";
+    }).join(", ");
+  };
+  el.innerHTML =
+    '<div class="cliff"><span class="at">weeks ' + weeks.join("-") + '</span>' +
+    '<span class="muted">The weeks your league plays for money.</span></div>' +
+    '<div class="cliff"><span class="at">softest</span><span class="muted">' + line(easy,"good") +
+    ' — a real tiebreaker in favour of their skill players.</span></div>' +
+    '<div class="cliff"><span class="at">hardest</span><span class="muted">' + line(hard,"bad") +
+    ' — fine to draft, worth knowing before you stack two of them.</span></div>';
+}
+
 function renderCliffs(){
   const out=[];
   ["RB","WR","TE","QB"].forEach(pos=>{
@@ -2936,7 +3089,7 @@ $("#liveAdp").addEventListener("change",function(e){
   state.useLiveAdp=e.target.checked;
   if(state.useLiveAdp && !LIVEDATA){ refreshLive(false); return; }
   applyLeague(state.league); reseed(); runSim(); save();
-  renderCliffs(); renderAll(); dataStamp();
+  renderCliffs(); renderSOS(); renderAll(); dataStamp();
 });
 
 /* Import a draft in progress. Sleeper exposes its picks as public JSON, so the
@@ -3041,7 +3194,7 @@ $("#syncWipe").addEventListener("click",function(){
 });
 $("#league").addEventListener("change",function(e){
   applyLeague(e.target.value); reseed(); runSim(); save();
-  renderCliffs(); renderAll();
+  renderCliffs(); renderSOS(); renderAll();
 });
 
 const slotSel=$("#slot");
@@ -3105,6 +3258,7 @@ $("#simOn").checked = state.sim;
 const hashRes = importFromHash();
 if(!hashRes && !state.picks.length) runSim();
 renderCliffs();
+renderSOS();
 $("#p-board").hidden=false;
 [...$("#sortby").children].forEach(function(x){
   x.setAttribute("aria-pressed", x.dataset.s===state.sortBy);
@@ -3118,7 +3272,7 @@ if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
 window.addEventListener("hashchange", function(){
   const res = importFromHash();
   if(!res) return;
-  renderCliffs(); renderAll(); showHashResult(res);
+  renderCliffs(); renderSOS(); renderAll(); showHashResult(res);
 });
 </script>
 
