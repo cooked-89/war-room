@@ -447,6 +447,19 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
         <div class="card-b" id="recs" style="padding-top:4px; padding-bottom:4px"></div>
       </div>
 
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h">
+          <h3>Plan this slot</h3>
+          <button class="btn sm" id="slotPlanGo">Simulate 24 drafts</button>
+        </div>
+        <div class="card-b" id="slotPlanOut">
+          <p class="muted" style="margin:0; font-size:13px">
+            Runs your seat against the field and reports what you actually end up taking,
+            round by round.
+          </p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-h"><h3>Draft board</h3><span class="eyebrow" id="boardMeta"></span></div>
         <div class="scroller" style="max-height:420px"><table class="dboard" id="dboard"></table></div>
@@ -2938,6 +2951,83 @@ function offBoardNote(){
     'is going to tell you which. Take them last.</div></div>';
 }
 
+/* ---------- slot planner ----------
+   Rather than tell you what a draft from pick 7 "should" look like, run it. The
+   other managers behave as they do in the simulator; you take the highest value
+   over replacement that your roster still needs. Repeat, then report what actually
+   happened often enough to plan around. This is descriptive, not prophecy — the
+   percentages are what this model does against these projections. */
+function slotReport(slot, trials){
+  const saved = {picks: state.picks.slice(), slot: state.slot,
+                 seed: state.seed, sim: state.sim};
+  state.slot = slot; state.sim = true;
+  const agg = {};
+  const total = totalPicks();
+
+  for(let t = 0; t < trials; t++){
+    state.picks = []; reseed(); runSim();
+    let guard = 0;
+    while(state.picks.length < total && guard++ < 500){
+      if(teamOnClock(state.picks.length) !== myIdx()) break;
+      const round  = roundOf(state.picks.length);
+      const roster = rosterOf(myIdx());
+      const avail  = available();
+      let best = null, bestScore = -1e9;
+      avail.forEach(function(p){
+        const need = needScore(roster, p.pos, round, NEUTRAL, NEED);
+        if(need <= 0) return;
+        const v  = (p.vorp === null ? -60 : p.vorp);
+        const sc = v * (0.6 + 0.4 * Math.min(need, 2));
+        if(sc > bestScore){ bestScore = sc; best = p; }
+      });
+      if(!best) break;
+      const a = agg[round] || (agg[round] = {pos:{}, name:{}, vor:0, n:0});
+      a.pos[best.pos] = (a.pos[best.pos] || 0) + 1;
+      a.name[best.name] = (a.name[best.name] || 0) + 1;
+      a.vor += (best.vorp === null ? 0 : best.vorp);
+      a.n++;
+      makePick(best.id);
+      runSim();
+    }
+  }
+
+  state.picks = saved.picks; state.slot = saved.slot;
+  state.seed = saved.seed;   state.sim  = saved.sim;
+  return agg;
+}
+
+function renderSlotPlan(){
+  const host = $("#slotPlanOut");
+  if(!host) return;
+  const trials = 24;
+  const agg = slotReport(state.slot, trials);
+  const rounds = Object.keys(agg).map(Number).sort(function(a,b){ return a-b; });
+  if(!rounds.length){ host.innerHTML = '<p class="muted" style="margin:0">Nothing to plan.</p>'; return; }
+
+  const top = function(obj, k){
+    return Object.keys(obj).sort(function(a,b){ return obj[b]-obj[a]; }).slice(0,k)
+      .map(function(key){ return {key:key, n:obj[key]}; });
+  };
+  host.innerHTML = rounds.map(function(r){
+    const a = agg[r];
+    const posList = top(a.pos, 2).map(function(x){
+      return '<span class="pos ' + x.key + '">' + POS_LABEL[x.key] + "</span> " +
+             Math.round(x.n / a.n * 100) + "%";
+    }).join(" · ");
+    const names = top(a.name, 3).map(function(x){
+      return esc(x.key) + ' <span class="faint">' + Math.round(x.n / a.n * 100) + "%</span>";
+    }).join(", ");
+    return '<div class="cliff"><span class="at">Round ' + r + "</span>" +
+      '<span class="muted" style="flex:1">' + posList +
+      ' <span class="faint">· avg value +' + (a.vor / a.n).toFixed(0) + "</span><br>" +
+      '<span style="font-size:12.5px">' + names + "</span></span></div>";
+  }).join("") +
+  '<p class="faint" style="font-size:12px; margin:10px 0 0">' +
+  "From pick " + state.slot + " of " + state.teams + ", across " + trials +
+  " simulated drafts. The other managers vary each run, so treat these as tendencies — " +
+  "the round where the position flips is the part worth remembering.</p>";
+}
+
 /* ---------- Depth Charts ---------- */
 function renderDepth(){
   const q = ($("#dq").value||"").toLowerCase().trim();
@@ -3085,6 +3175,15 @@ $("#sortby").addEventListener("click",function(e){
   save(); renderBoard();
 });
 $("#dataRefresh").addEventListener("click",function(){ refreshLive(false); });
+$("#slotPlanGo").addEventListener("click",function(){
+  const b=this; b.disabled=true; b.textContent="Simulating…";
+  $("#slotPlanOut").innerHTML='<p class="muted" style="margin:0">Running…</p>';
+  setTimeout(function(){
+    try{ renderSlotPlan(); }
+    catch(e){ $("#slotPlanOut").innerHTML='<p class="bad" style="margin:0">'+esc(e.message)+"</p>"; }
+    b.disabled=false; b.textContent="Simulate 24 drafts";
+  }, 30);
+});
 $("#liveAdp").addEventListener("change",function(e){
   state.useLiveAdp=e.target.checked;
   if(state.useLiveAdp && !LIVEDATA){ refreshLive(false); return; }
