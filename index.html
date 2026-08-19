@@ -2109,7 +2109,7 @@ const INTEL = {
 /* ---------- build player objects ---------- */
 let PLAYERS=[], byId=new Map(), byName=new Map(), TIER_SIZE={}, LINEUP=[], NEED={}, AI_NEED={};
 let NORM = new Map();
-let REPLACEMENT = {};
+let REPLACEMENT = {}, STARTERS = {};
 
 /* The draft id identifies a specific private league, so it lives on the device
    rather than in the source. Entered once, kept in localStorage, never published. */
@@ -2269,18 +2269,37 @@ function attachProjections(key){
     p.proj = Math.round(p.proj * 10) / 10;
   });
 
-  /* Replacement level: the last player at each position who would still be
-     starting somewhere in this league, plus a slice of the flex. */
-  const flexShare = {RB:0.5, WR:0.5, TE:0.25};
+  /* Replacement level comes from the STARTING lineup, never from roster minimums.
+     CBS requires two quarterbacks on the roster but starts one; counting the
+     requirement would price 24 quarterbacks as starters in a 12-team league and
+     inflate every one of them. Flex slots are shared out by how they actually get
+     filled — a superflex is a quarterback almost every time, a normal flex is
+     mostly running backs and receivers. */
+  const dedicated = {}, flexSlots = {FLEX:0, SFLEX:0};
+  LINEUP.forEach(function(pair){
+    const slot = pair[0], n = pair[1];
+    if(slot === "FLEX" || slot === "SFLEX") flexSlots[slot] += n;
+    else dedicated[slot] = (dedicated[slot] || 0) + n;
+  });
+  const FLEX_SPLIT  = {RB:0.40, WR:0.40, TE:0.20};
+  const SFLEX_SPLIT = {QB:0.85, RB:0.05, WR:0.08, TE:0.02};
+
+  STARTERS = {};
+  ["QB","RB","WR","TE","PK","DEF"].forEach(function(pos){
+    STARTERS[pos] = (dedicated[pos] || 0)
+      + flexSlots.FLEX  * (FLEX_SPLIT[pos]  || 0)
+      + flexSlots.SFLEX * (SFLEX_SPLIT[pos] || 0);
+  });
+
   REPLACEMENT = {};
   ["QB","RB","WR","TE","PK","DEF"].forEach(function(pos){
-    const req = NEED[pos] || 0;
-    if(!req){ REPLACEMENT[pos] = null; return; }
+    const starters = STARTERS[pos];
+    if(starters <= 0){ REPLACEMENT[pos] = null; return; }
     const pool = PLAYERS.filter(function(p){ return p.pos===pos && p.proj!==null; })
                         .sort(function(a,b){ return b.proj-a.proj; });
     if(!pool.length){ REPLACEMENT[pos] = null; return; }
     const idx = Math.min(pool.length-1,
-      Math.max(0, Math.round(state.teams * (req + (flexShare[pos]||0))) - 1));
+      Math.max(0, Math.round(state.teams * starters) - 1));
     REPLACEMENT[pos] = pool[idx].proj;
   });
 
@@ -2537,16 +2556,25 @@ function needScore(roster, pos, round, style, reqs){
   // doesn't all reach for the same position in the same round
   const ramp = (from,lo,hi) => lo + (hi-lo)*Math.max(0,Math.min(1,(round-from+2)/4));
   const late = round >= state.rounds-4;   // running out of draft; stop being clever
+  /* How many of this position you can actually START. Wanting one is about points;
+     wanting the one after that is only about obeying a roster rule, and those two
+     appetites belong in different rounds. CBS makes you roster two quarterbacks but
+     starts one — the backup is a late-round obligation, not a second-round decision. */
+  const canStart = Math.max(1, Math.round(STARTERS[pos] || 0));
   if(pos==="QB"){
     if(req===0) return 0;
-    // superflex: a second quarterback is a starter, not a luxury — no waiting game
-    if(req>=2) return n<req ? 1.55 : (n<req+1 ? 0.15 : 0);
-    return n===0 ? (late?3.2:ramp(style.qbRound,0.45,1.7)) : (n===1 ? 0.12 : 0);
+    if(n < canStart){
+      return canStart >= 2 ? 1.55                                  // superflex: both start
+                           : (late ? 3.2 : ramp(style.qbRound,0.45,1.7));
+    }
+    if(n < req) return (round >= state.rounds-6) ? 3.6 : 0.10;     // required backup
+    return 0;
   }
   if(pos==="TE"){
     if(req===0) return n===0 ? 0.45 : 0;           // MFL: tight end is flex-only
-    if(n<req) return late ? 3.2 : (n===0 ? ramp(style.teRound,0.55,1.7) : 1.5);
-    return n<req+1 ? 0.15 : 0;
+    if(n < canStart) return late ? 3.2 : (n===0 ? ramp(style.teRound,0.55,1.7) : 1.5);
+    if(n < req) return (round >= state.rounds-6) ? 3.6 : 0.10;
+    return 0;
   }
   const bias = (pos==="RB") ? style.rbBias : 1;
   if(n < req) return 1.9*bias;
@@ -2719,6 +2747,16 @@ function recommend(){
       cands.push({p, score, left, value, gone: nextMine!==null && p.adp < nextMine+1});
     });
   });
+  if(!cands.length){
+    /* Every remaining player is at a position this roster has finished with. That is
+       still a pick - bench value, but a pick - so rank what is left by value rather
+       than returning nothing and stalling the draft. */
+    avail.slice(0,6).forEach(function(p){
+      const left = avail.filter(function(x){ return x.pos===p.pos && x.tier===p.tier; }).length;
+      cands.push({p:p, score:(p.vorp===null?0:p.vorp), left:left,
+                  value:(here+1)-p.adp, gone:false, bench:true});
+    });
+  }
   return cands.sort((a,b)=>b.score-a.score).slice(0,6);
 }
 
@@ -2797,6 +2835,7 @@ function renderDraft(){
       const bits=[];
       if(r.value>6) bits.push(`<span class="good">falling — ADP ${p.adp.toFixed(1)}, you're at ${ov+1}</span>`);
       else if(r.value<-8) bits.push(`<span class="bad">reach — ADP ${p.adp.toFixed(1)}</span>`);
+      if(r.bench) bits.push('<span class="faint">every slot is filled - bench depth</span>');
       if(p.vorp !== null) bits.push(`<strong>${p.vorp>0?"+":""}${p.vorp.toFixed(0)}</strong> value`);
       bits.push(`${r.left} left in ${p.pos} tier ${p.tier}`);
       if(p.inj) bits.push(`<span class="bad">${esc(p.inj)}</span>`);
@@ -2977,7 +3016,17 @@ function slotReport(slot, trials){
         const need = needScore(roster, p.pos, round, NEUTRAL, NEED);
         if(need <= 0) return;
         const v  = (p.vorp === null ? -60 : p.vorp);
-        const sc = v * (0.6 + 0.4 * Math.min(need, 2));
+        /* Value assumes the player starts. Past the number you can actually start,
+           the next one at that position is a bench body — discount him hard, or the
+           planner happily takes four tight ends. */
+        const have = roster.filter(function(x){ return x.pos===p.pos; }).length;
+        /* Discount the pick BEYOND what you can start. ceil() so a fractional flex
+           share still counts as a startable slot: 2.4 starting backs means the third
+           is a flex starter, the fourth is a bench body. The 0.25 factor is the
+           rough share of a backup's value you actually realise: he scores nothing
+           while he sits, and only pays off on a bye or an injury. */
+        const surplus = Math.max(0, have - Math.ceil(STARTERS[p.pos] || 1) + 1);
+        const sc = v * (0.6 + 0.4 * Math.min(need, 2)) * Math.pow(0.25, surplus);
         if(sc > bestScore){ bestScore = sc; best = p; }
       });
       if(!best) break;
