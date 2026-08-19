@@ -13,6 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="War Room">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -3066,7 +3067,6 @@ window.addEventListener("hashchange", function(){
 </script>
 
 <script>
-window.LIVE_CAPABLE = true;   /* this build can reach the network */
 /* ---------- installed-app plumbing ---------- */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
