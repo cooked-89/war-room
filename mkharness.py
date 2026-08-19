@@ -998,6 +998,104 @@ harness = r'''
     setDraftOrder(null);
   });
 
+
+  step("mocks-save-load-and-grade",function(){
+    try{ localStorage.removeItem("warroom.mocks.v1"); }catch(e){}
+    ensureDraft("espn10", 3);
+    var roster=rosterOf(myIdx()).map(function(p){return p.name;}).join();
+    var r=saveMock("seat 3 test");
+    if(r.error) throw new Error(r.error);
+    if(!(r.grade.points>0)) throw new Error("grade has no points");
+    if(r.grade.rank<1||r.grade.rank>state.teams) throw new Error("rank out of range");
+
+    // a different seat should produce a different roster, and both are kept
+    ensureDraft("espn10", 9);
+    saveMock("seat 9 test");
+    var mine=loadMocks().filter(function(m){return m.league==="espn10";});
+    if(mine.length!==2) throw new Error("expected 2 saves, got "+mine.length);
+
+    // load the first back and confirm the roster is restored exactly
+    var target=mine.filter(function(m){return m.name==="seat 3 test";})[0];
+    var lr=loadMock(target.id);
+    if(lr.error) throw new Error(lr.error);
+    if(state.slot!==3) throw new Error("seat not restored");
+    if(rosterOf(myIdx()).map(function(p){return p.name;}).join()!==roster)
+      throw new Error("roster not restored");
+    log.push("   (mocks: seat 3 "+target.grade.points.toFixed(0)+" pts rank "+target.grade.rank+")");
+  });
+
+  step("mocks-are-scoped-per-league",function(){
+    try{ localStorage.removeItem("warroom.mocks.v1"); }catch(e){}
+    ensureDraft("espn10", 1); saveMock("espn one");
+    ensureDraft("cbs12", 1);  saveMock("cbs one");
+    renderDraft();
+    var shown=document.getElementById("mocksOut").textContent;
+    if(shown.indexOf("cbs one")<0) throw new Error("cbs save not listed while in cbs");
+    if(shown.indexOf("espn one")>=0) throw new Error("espn save leaked into the cbs list");
+    if(loadMocks().length!==2) throw new Error("both should still be stored");
+  });
+
+  step("mocks-restore-a-custom-order",function(){
+    try{ localStorage.removeItem("warroom.mocks.v1"); }catch(e){}
+    ensureLeagueOnly("mfl12");
+    setDraftOrder(parseMflOrder(MFL_FIXTURE).order);
+    state.sim=false; state.picks=[];
+    makePick(PLAYERS[0].id); makePick(PLAYERS[1].id);
+    saveMock("with order");
+    setDraftOrder(null);
+    if(state.order) throw new Error("order should be cleared");
+    var m=loadMocks()[0];
+    loadMock(m.id);
+    if(!state.order) throw new Error("order not restored with the mock");
+    if(teamOnClock(24)!==2) throw new Error("restored order is wrong");
+    setDraftOrder(null);
+  });
+
+  step("mocks-handle-an-empty-draft-and-bad-id",function(){
+    ensureLeagueOnly("espn10");
+    state.picks=[];
+    if(!saveMock("nothing").error) throw new Error("saving an empty draft should be refused");
+    if(!loadMock("does-not-exist").error) throw new Error("unknown id should error");
+  });
+
+
+  step("defence-names-resolve-from-every-host",function(){
+    ensureLeagueOnly("espn10");
+    var forms=["Buffalo Defense","Buffalo Bills","Bills, Buffalo","Bills","Buffalo",
+               "BUF Defense","Bills D/ST","buffalo dst"];
+    forms.forEach(function(f){
+      var norm=f.indexOf(",")>=0 ? f.split(", ")[1]+" "+f.split(", ")[0] : f;
+      var hit=NORM.get(normName(norm.replace("D/ST","dst")));
+      if(!hit) throw new Error("no match for '"+f+"'");
+      if(hit.pos!=="DEF"||hit.team!=="BUF") throw new Error("'"+f+"' matched "+hit.name);
+    });
+    // and a two-word city still works
+    ["Kansas City Chiefs","Chiefs","Kansas City"].forEach(function(f){
+      var hit=NORM.get(normName(f));
+      if(!hit||hit.team!=="KC") throw new Error("KC form failed: "+f);
+    });
+    log.push("   (defence aliases: "+forms.length+" naming styles all resolve)");
+  });
+
+  step("mfl-hash-loads-order-and-picks",function(){
+    ensureLeagueOnly("mfl12");
+    setDraftOrder(null); state.picks=[];
+    var parsed=parseMflOrder(MFL_FIXTURE);
+    var names=available().slice(0,4).map(function(p){return p.name;});
+    var payload={league:"mfl12",order:parsed.order,names:names};
+    var r=applyMflHash("#mfl="+encodeURIComponent(JSON.stringify(payload)));
+    if(!r||r.error) throw new Error("mfl sync failed: "+(r&&r.error));
+    if(!state.order) throw new Error("order not applied");
+    if(state.picks.length!==4) throw new Error("picks not applied: "+state.picks.length);
+    if(teamOnClock(24)!==2) throw new Error("order wrong after sync");
+    if(state.picks[0].team!==11) throw new Error("first pick owner wrong");
+    if(applyMflHash("#something-else")!==null) throw new Error("should ignore other hashes");
+    if(!applyMflHash("#mfl=nonsense").error) throw new Error("bad payload should error");
+    var bad=applyMflHash("#mfl="+encodeURIComponent(JSON.stringify({league:"mfl12",order:[0,1,99]})));
+    if(!bad.error) throw new Error("out-of-range team should be rejected");
+    setDraftOrder(null); state.picks=[];
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;

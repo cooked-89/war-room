@@ -451,8 +451,8 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
           <div id="bmWrap" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
             <div class="eyebrow" style="margin-bottom:5px">One-click sync</div>
             <p class="faint" style="margin:0 0 7px; font-size:12.5px">
-              Make a new browser bookmark and paste this as its <em>address</em>. During the draft,
-              click it — the board fills in and re-clicking updates the same tab. Works from any page.
+              Make a new browser bookmark and paste this as its <em>address</em>, then click it
+              <strong id="bmWhere">during the draft</strong>. Re-clicking updates the same tab.
             </p>
             <input id="bmCode" readonly value=""
               style="width:100%; font-family:var(--mono); font-size:10.5px; padding:6px;
@@ -470,6 +470,20 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
         </div>
         <div class="card-b" id="recs" style="padding-top:4px; padding-bottom:4px"></div>
       </div>
+
+      <details class="card" id="mocksCard" style="margin-bottom:16px">
+        <summary class="card-h" style="cursor:pointer; list-style:none">
+          <h3>Saved drafts</h3><span class="eyebrow">compare your mocks</span>
+        </summary>
+        <div class="card-b">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px">
+            <input type="text" id="mockName" placeholder="Name this draft…" style="flex:1; min-width:150px">
+            <button class="btn sm primary" id="mockSave">Save current</button>
+            <span id="mockMsg" style="font-size:12.5px; align-self:center"></span>
+          </div>
+          <div id="mocksOut"></div>
+        </div>
+      </details>
 
       <div class="card" style="margin-bottom:16px">
         <div class="card-h"><h3>Your queue</h3><span class="eyebrow">starred and still there</span></div>
@@ -2100,6 +2114,25 @@ const LEAGUES = {
     liveFeed:"sleeper" }
 };
 
+/* Every host names a defence differently: "Buffalo Defense" on the ADP board,
+   "Bills, Buffalo" from MyFantasyLeague, "Bills D/ST" on ESPN, plain "Buffalo" on
+   CBS. Registering every form is the difference between importing a draft cleanly
+   and silently dropping a pick. */
+const TEAM_NAMES = {
+  ARI:["Arizona","Cardinals"], ATL:["Atlanta","Falcons"], BAL:["Baltimore","Ravens"],
+  BUF:["Buffalo","Bills"], CAR:["Carolina","Panthers"], CHI:["Chicago","Bears"],
+  CIN:["Cincinnati","Bengals"], CLE:["Cleveland","Browns"], DAL:["Dallas","Cowboys"],
+  DEN:["Denver","Broncos"], DET:["Detroit","Lions"], GB:["Green Bay","Packers"],
+  HOU:["Houston","Texans"], IND:["Indianapolis","Colts"], JAX:["Jacksonville","Jaguars"],
+  KC:["Kansas City","Chiefs"], LAC:["Los Angeles Chargers","Chargers"],
+  LAR:["Los Angeles Rams","Rams"], LV:["Las Vegas","Raiders"], MIA:["Miami","Dolphins"],
+  MIN:["Minnesota","Vikings"], NE:["New England","Patriots"], NO:["New Orleans","Saints"],
+  NYG:["New York Giants","Giants"], NYJ:["New York Jets","Jets"],
+  PHI:["Philadelphia","Eagles"], PIT:["Pittsburgh","Steelers"], SEA:["Seattle","Seahawks"],
+  SF:["San Francisco","49ers"], TB:["Tampa Bay","Buccaneers"], TEN:["Tennessee","Titans"],
+  WAS:["Washington","Commanders"]
+};
+
 const BYES = {KC:5,CAR:5, MIA:6,CIN:6,DET:6,MIN:6, BUF:7,LAC:7,WAS:7,JAX:7,
   NYG:8,NO:8,SF:8,HOU:8, TEN:9,PIT:9, DEN:10,PHI:10,CHI:10,TB:10,
   NE:11,CLE:11,SEA:11,GB:11,ATL:11,LAR:11, IND:13,NYJ:13,LV:13,BAL:13, DAL:14,ARI:14};
@@ -2268,7 +2301,16 @@ function buildLeague(key){
   NORM = new Map();
   PLAYERS.forEach(function(p){
     NORM.set(normName(p.name), p);
-    if(p.pos==="DEF") NORM.set(normName(p.team+" defense"), p);
+    if(p.pos !== "DEF") return;
+    const t = TEAM_NAMES[p.team] || [];
+    const city = t[0] || "", nick = t[1] || "";
+    [p.team + " defense", p.team + " dst", city, nick,
+     city + " " + nick, nick + " " + city,
+     city + " defense", nick + " defense",
+     city + " dst", nick + " dst"].forEach(function(alias){
+      const k = normName(alias);
+      if(k && !NORM.has(k)) NORM.set(k, p);
+    });
   });
   attachProjections(key);
   byId   = new Map(PLAYERS.map(function(p){ return [p.id,p]; }));
@@ -2596,6 +2638,29 @@ function loadOrderFromText(text){
 function refreshBookmarklet(key){
   const field = $("#bmCode");
   if(!field) return;
+  if(key === "mfl12"){
+    /* Fetches the published order and, once picks exist, resolves their ids through
+       the league's own player list before handing everything over. */
+    field.value =
+      "javascript:(async function(){try{" +
+      "var b='https://www44.myfantasyleague.com/2026/export?L=33101&JSON=1';" +
+      "var d=await (await fetch(b+'&TYPE=draftResults')).json();" +
+      "var ps=d.draftResults.draftUnit.draftPick;" +
+      "var T=12,ord=[],ids=[];" +
+      "ps.forEach(function(p){var r=+p.round,k=+p.pick;ord[(r-1)*T+(k-1)]=(+p.franchise)-1;" +
+      "if(p.player)ids.push({o:(r-1)*T+(k-1),id:String(p.player)});});" +
+      "var names=[];" +
+      "if(ids.length){var pl=await (await fetch(b+'&TYPE=players&DETAILS=0')).json();" +
+      "var map={};(pl.players.player||[]).forEach(function(x){map[String(x.id)]=x.name;});" +
+      "ids.sort(function(a,b){return a.o-b.o});" +
+      "names=ids.map(function(x){var n=map[x.id]||'';" +
+      "var c=n.split(', ');return c.length>1?(c[1]+' '+c[0]):n;}).filter(Boolean);}" +
+      "var pay={league:'mfl12',order:ord,names:names};" +
+      "window.open('" + location.origin + location.pathname +
+      "#mfl='+encodeURIComponent(JSON.stringify(pay)),'warroom');" +
+      "}catch(e){alert('War Room sync failed: '+e.message)}})()";
+    return;
+  }
   const id = draftIdFor(key);
   if(!id){ field.value = "Enter your draft ID above first."; return; }
   field.value =
@@ -3277,6 +3342,7 @@ function renderDraft(){
   }
 
   renderQueue();
+  renderMocks();
 
   // cost of waiting
   const cowEl = $("#cowOut"), cowMeta = $("#cowMeta");
@@ -3916,6 +3982,119 @@ function renderQueue(){
       (lost.length>8 ? " +" + (lost.length-8) : "") + "</p>" : "");
 }
 
+/* ---------- saved drafts ----------
+   A mock is only useful if you can compare it to the last one. Each save records the
+   picks, the seat, the order in force, and the grade at the time, so a run of mocks
+   becomes a record of which seats and strategies actually produced a better roster.
+   Kept per league and capped, because localStorage is not infinite. */
+const MOCKS_KEY = "warroom.mocks.v1";
+const MOCK_LIMIT = 40;
+
+function loadMocks(){
+  try{
+    const raw = localStorage.getItem(MOCKS_KEY);
+    const d = raw ? JSON.parse(raw) : [];
+    return Array.isArray(d) ? d : [];
+  }catch(e){ return []; }
+}
+function storeMocks(list){
+  try{ localStorage.setItem(MOCKS_KEY, JSON.stringify(list.slice(0, MOCK_LIMIT))); }
+  catch(e){
+    /* Out of room: drop the oldest half rather than losing the save outright. */
+    try{ localStorage.setItem(MOCKS_KEY, JSON.stringify(list.slice(0, Math.floor(MOCK_LIMIT/2)))); }
+    catch(e2){}
+  }
+}
+
+/* The numbers worth remembering about a finished roster. */
+function gradeSnapshot(){
+  const scores = [];
+  for(let t=0;t<state.teams;t++) scores.push({team:t, pts:bestLineup(rosterOf(t)).points});
+  const sorted = scores.slice().sort(function(a,b){ return b.pts-a.pts; });
+  const mine = scores[myIdx()];
+  const rank = sorted.findIndex(function(s){ return s.team === myIdx(); }) + 1;
+  const median = sorted[Math.floor(sorted.length/2)].pts;
+  return {points: mine.pts, rank: rank, of: state.teams,
+          vsMedian: Math.round((mine.pts - median) * 10) / 10,
+          best: sorted[0].pts};
+}
+
+function saveMock(name){
+  if(!state.picks.length) return {error:"Nothing drafted yet."};
+  const list = loadMocks();
+  const g = gradeSnapshot();
+  list.unshift({
+    id: "m" + Date.now() + "-" + Math.floor(Math.random()*1000),
+    name: (name || "").trim() || ("Mock " + new Date().toLocaleString()),
+    league: state.league, at: Date.now(),
+    slot: state.slot, rounds: state.rounds,
+    picks: state.picks.slice(),
+    order: state.order ? state.order.slice() : null,
+    grade: g,
+    roster: rosterOf(myIdx()).map(function(p){ return p.name; })
+  });
+  storeMocks(list);
+  return {ok:"Saved.", grade:g};
+}
+
+function loadMock(id){
+  const m = loadMocks().find(function(x){ return x.id === id; });
+  if(!m) return {error:"That draft is gone."};
+  if(m.league !== state.league) applyLeague(m.league);
+  state.slot = m.slot; slotSel.value = m.slot;
+  if(m.rounds){ state.rounds = m.rounds; $("#rounds").value = m.rounds; }
+  setDraftOrder(m.order || null);
+  state.picks = (m.picks || []).filter(function(pk){ return byId.has(pk.playerId); });
+  state.sim = false; $("#simOn").checked = false;
+  save();
+  return {ok:"Loaded " + m.name + "."};
+}
+
+function deleteMock(id){
+  storeMocks(loadMocks().filter(function(x){ return x.id !== id; }));
+}
+
+function renderMocks(){
+  const host = $("#mocksOut");
+  if(!host) return;
+  const mine = loadMocks().filter(function(m){ return m.league === state.league; });
+  if(!mine.length){
+    host.innerHTML = '<p class="muted" style="margin:0; font-size:13px">' +
+      "No saved drafts for this league yet. Finish a mock and save it — the value is in comparing several.</p>";
+    return;
+  }
+  const pts = mine.map(function(m){ return m.grade.points; });
+  const best = Math.max.apply(null, pts), worst = Math.min.apply(null, pts);
+  const avgRank = mine.reduce(function(a,m){ return a + m.grade.rank; }, 0) / mine.length;
+
+  host.innerHTML =
+    '<div class="faint" style="font-size:12px; margin-bottom:8px">' +
+      mine.length + " saved · best roster " + best.toFixed(0) +
+      " · worst " + worst.toFixed(0) + " · average finish " + avgRank.toFixed(1) +
+      " of " + state.teams + "</div>" +
+    mine.map(function(m){
+      const g = m.grade;
+      const cls = g.rank <= Math.ceil(m.grade.of/3) ? "good"
+                : (g.rank > m.grade.of - Math.ceil(m.grade.of/3) ? "bad" : "muted");
+      const bar = Math.round((m.grade.points - worst) / Math.max(1, best - worst) * 100);
+      return '<div style="padding:7px 0; border-bottom:1px solid var(--line)">' +
+        '<div style="display:flex; gap:8px; align-items:baseline; flex-wrap:wrap">' +
+          '<span class="pname" style="flex:1; min-width:120px">' + esc(m.name) + "</span>" +
+          '<span class="num">' + g.points.toFixed(0) + "</span>" +
+          '<span class="' + cls + '" style="font-size:12px">' + g.rank + " of " + g.of + "</span>" +
+          '<span class="faint" style="font-size:11.5px">seat ' + m.slot + "</span>" +
+          '<button class="btn sm" data-mockload="' + m.id + '">Load</button>' +
+          '<button class="iconbtn" data-mockdel="' + m.id + '" title="Delete">×</button>' +
+        "</div>" +
+        '<div style="height:4px; background:var(--surface-3); border-radius:99px; margin-top:5px">' +
+          '<div style="width:' + bar + '%; height:100%; border-radius:99px; background:var(--gold)"></div></div>' +
+        '<div class="faint" style="font-size:11px; margin-top:4px">' +
+          esc((m.roster || []).slice(0,5).join(", ")) +
+          ((m.roster||[]).length > 5 ? " +" + ((m.roster||[]).length-5) : "") + "</div>" +
+      "</div>";
+    }).join("");
+}
+
 /* ---------- Depth Charts ---------- */
 function renderDepth(){
   const q = ($("#dq").value||"").toLowerCase().trim();
@@ -4100,6 +4279,26 @@ $("#sortby").addEventListener("click",function(e){
   save(); renderBoard();
 });
 $("#dataRefresh").addEventListener("click",function(){ refreshLive(false); });
+$("#mockSave").addEventListener("click",function(){
+  const r = saveMock($("#mockName").value);
+  $("#mockMsg").innerHTML = r.error
+    ? '<span class="bad">' + esc(r.error) + "</span>"
+    : '<span class="good">Saved — ' + r.grade.points.toFixed(0) + " pts, " +
+      r.grade.rank + " of " + r.grade.of + "</span>";
+  $("#mockName").value = "";
+  renderMocks();
+});
+document.getElementById("mocksOut").addEventListener("click",function(e){
+  const l = e.target.closest("[data-mockload]"), d = e.target.closest("[data-mockdel]");
+  if(l){
+    const r = loadMock(l.dataset.mockload);
+    $("#mockMsg").innerHTML = r.error
+      ? '<span class="bad">' + esc(r.error) + "</span>"
+      : '<span class="good">' + esc(r.ok) + "</span>";
+    renderCliffs(); renderSOS(); renderAll();
+  }
+  if(d){ deleteMock(d.dataset.mockdel); renderMocks(); }
+});
 $("#slotPlanGo").addEventListener("click",function(){
   const b=this; b.disabled=true; b.textContent="Simulating…";
   $("#slotPlanOut").innerHTML='<p class="muted" style="margin:0">Running…</p>';
@@ -4224,6 +4423,51 @@ function applySetupHash(rawHash){
   return applied.length ? {applied:applied} : {error:"That setup link had nothing usable in it."};
 }
 
+/* MyFantasyLeague sends Access-Control-Allow-Origin for its own host only, so this
+   page can never fetch their export directly. The bookmarklet runs ON their site,
+   where the request is same-origin, and hands the result back through the URL. */
+function applyMflHash(rawHash){
+  const srcHash = (rawHash === undefined ? (location.hash || "") : String(rawHash));
+  const m = srcHash.match(/^#mfl=([\s\S]+)$/);
+  if(!m) return null;
+  let d;
+  try{ d = JSON.parse(decodeURIComponent(m[1])); }
+  catch(e){ return {error:"That MyFantasyLeague link is malformed."}; }
+  if(!d || typeof d !== "object") return {error:"That MyFantasyLeague link is malformed."};
+
+  const key = (typeof d.league === "string" && LEAGUES[d.league]) ? d.league : "mfl12";
+  if(state.league !== key) applyLeague(key);
+
+  let orderNote = "";
+  if(Array.isArray(d.order) && d.order.length){
+    const clean = d.order.map(function(x){ return Math.round(Number(x)); })
+                         .filter(function(x){ return isFinite(x); });
+    if(clean.some(function(x){ return x < 0 || x >= state.teams; }))
+      return {error:"That order references teams outside this league."};
+    setDraftOrder(clean);
+    orderNote = Math.ceil(clean.length / state.teams) + " rounds of draft order";
+  }
+
+  let pickNote = "";
+  if(Array.isArray(d.names) && d.names.length){
+    const res = applyNames(d.names.filter(function(n){ return typeof n === "string"; }));
+    pickNote = res.count + " picks" + (res.missed.length ? " (" + res.missed.length + " unmatched)" : "");
+  }
+  if(!orderNote && !pickNote) return {error:"That link carried nothing usable."};
+  return {applied:[orderNote, pickNote].filter(Boolean).join(" and ")};
+}
+
+function showMflResult(res){
+  if(!res) return;
+  const bar = $("#setupMsg");
+  if(!bar) return;
+  bar.hidden = false;
+  bar.className = "alert" + (res.error ? " hot" : "");
+  bar.innerHTML = res.error
+    ? '<span class="bad">' + esc(res.error) + "</span>"
+    : "<div><b>Synced from MyFantasyLeague.</b> Loaded " + esc(res.applied) + ".</div>";
+}
+
 function showSetupResult(res){
   if(!res) return;
   const bar = $("#setupMsg");
@@ -4312,7 +4556,11 @@ function applyLeague(key){
   $("#simCount").textContent = L.teams-1;
   const lw = $("#liveWrap");
   if(lw) lw.hidden = !(L.liveFeed && window.LIVE_CAPABLE);
-  $("#bmWrap").hidden = !(L.liveFeed) || !!window.LIVE_CAPABLE;
+  $("#bmWrap").hidden = !(L.liveFeed || key === "mfl12");
+  const bw = $("#bmWhere");
+  if(bw) bw.textContent = (key === "mfl12")
+    ? "while you are on the MyFantasyLeague site"
+    : "during the draft";
   const dIn = $("#draftIdIn");
   if(dIn) dIn.value = draftIdFor(key);
   const wIn = $("#draftWhenIn");
@@ -4424,6 +4672,7 @@ applyLeague(state.league);
 state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });
 $("#simOn").checked = state.sim;
 const setupRes = applySetupHash();
+const mflRes = applyMflHash();
 if(setupRes && !setupRes.error){
   try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
 }
@@ -4441,9 +4690,20 @@ renderAll();
 dataStamp();
 showHashResult(hashRes);
 showSetupResult(setupRes);
+showMflResult(mflRes);
+if(mflRes && !mflRes.error){
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
+}
 if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
 
 window.addEventListener("hashchange", function(){
+  const mf = applyMflHash();
+  if(mf){
+    showMflResult(mf);
+    if(!mf.error){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
+    renderCliffs(); renderSOS(); renderAll();
+    return;
+  }
   const s = applySetupHash();
   if(s){
     applyLeague(state.league); showSetupResult(s);
