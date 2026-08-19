@@ -434,6 +434,20 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
             </p>
             <div id="liveMsg" style="font-size:12.5px; margin-top:6px" class="faint">Off.</div>
           </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+            <div class="eyebrow" style="margin-bottom:5px">Draft order</div>
+            <p class="faint" style="margin:0 0 7px; font-size:12.5px" id="orderHow"></p>
+            <div id="orderState" style="font-size:12.5px; margin-bottom:7px"></div>
+            <textarea id="orderIn" rows="3" placeholder="Paste MyFantasyLeague draftResults JSON, or a per-round order like 3,8,5,12,9,10,6,7,2,4,11,1"
+              style="width:100%; font-family:var(--mono); font-size:11px; padding:7px;
+                     border:1px solid var(--line-2); border-radius:6px;
+                     background:var(--surface-2); color:var(--ink); resize:vertical"></textarea>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap">
+              <button class="btn sm primary" id="orderGo">Load order</button>
+              <button class="btn sm" id="orderClear">Back to snake</button>
+              <span id="orderMsg" style="font-size:12.5px"></span>
+            </div>
+          </div>
           <div id="bmWrap" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
             <div class="eyebrow" style="margin-bottom:5px">One-click sync</div>
             <p class="faint" style="margin:0 0 7px; font-size:12.5px">
@@ -2278,6 +2292,8 @@ const state = {
   sortBy:"adp", useLiveAdp:false,
   tradeOut:new Set(), tradeIn:new Set(),
   byLeague:{},        // league key -> {picks, seed, slot} so drafts survive a switch
+  order:null,         // explicit team index per overall pick, or null for a snake
+  orderByLeague:{},
   seed:String(Math.floor(Math.random()*1e9)),  // fixes the AI teams' temperaments
   picks:[]   // {playerId, team (0-indexed), overall}
 };
@@ -2289,7 +2305,7 @@ function save(){
     localStorage.setItem(LS, JSON.stringify({
       league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp,
       slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
-      picks:state.picks, byLeague:state.byLeague,
+      picks:state.picks, byLeague:state.byLeague, orderByLeague:state.orderByLeague,
       star:[...state.star], avoid:[...state.avoid]
     }));
   }catch(e){/* private mode — run without persistence */}
@@ -2308,6 +2324,7 @@ function load(){
     if(d.seed) state.seed=d.seed;
     if(Array.isArray(d.picks)) state.picks=d.picks;
     if(d.byLeague && typeof d.byLeague === "object") state.byLeague=d.byLeague;
+    if(d.orderByLeague && typeof d.orderByLeague === "object") state.orderByLeague=d.orderByLeague;
     if(Array.isArray(d.star)) state.star=new Set(d.star);
     if(Array.isArray(d.avoid)) state.avoid=new Set(d.avoid);
   }catch(e){}
@@ -2533,6 +2550,47 @@ function renderCountdown(key){
   }
   if(c.days < 1){ el.innerHTML = '<span class="warn">Draft in ' + Math.round(c.hours) + ' hours.</span>'; return; }
   el.innerHTML = '<span class="muted">Draft in ' + c.days + ' day' + (c.days===1?"":"s") + ".</span>";
+}
+
+function renderOrderState(){
+  const el = $("#orderState");
+  if(!el) return;
+  if(!state.order){ el.innerHTML = '<span class="faint">Standard snake.</span>'; return; }
+  const t = state.teams;
+  const rounds = Math.min(4, Math.ceil(state.order.length / t));
+  let html = '<span class="good">' + esc(describeOrder()) + "</span>";
+  for(let r=0; r<rounds; r++){
+    const row = state.order.slice(r*t, r*t+t)
+      .map(function(x){ return x === undefined ? "?" : (x+1); }).join(" ");
+    html += '<div class="num faint" style="font-size:11px">R' + (r+1) + ": " + row + "</div>";
+  }
+  if(Math.ceil(state.order.length/t) > rounds)
+    html += '<div class="faint" style="font-size:11px">…' +
+            (Math.ceil(state.order.length/t) - rounds) + " more rounds loaded</div>";
+  el.innerHTML = html;
+}
+
+function loadOrderFromText(text){
+  const raw = (text || "").trim();
+  if(!raw) return {error:"Nothing pasted."};
+  if(raw[0] === "{" || raw[0] === "["){
+    const parsed = parseMflOrder(raw);
+    if(parsed.error) return parsed;
+    setDraftOrder(parsed.order);
+    return {ok:"Loaded " + parsed.rounds + " rounds (" + parsed.filled + " picks) from the host export."};
+  }
+  const nums = raw.split(/[^0-9]+/).filter(Boolean).map(Number);
+  if(nums.length !== state.teams)
+    return {error:"Expected " + state.teams + " team numbers, got " + nums.length + "."};
+  if(nums.some(function(n){ return n < 1 || n > state.teams; }))
+    return {error:"Team numbers must be between 1 and " + state.teams + "."};
+  /* One round given: repeat it every round. Deliberately NOT snaked - a league that
+     needs a custom order usually means a fixed repeating order. */
+  const out = [];
+  for(let r=0; r<state.rounds; r++)
+    for(let i=0;i<state.teams;i++) out.push(nums[i] - 1);
+  setDraftOrder(out);
+  return {ok:"Loaded a fixed order repeating for all " + state.rounds + " rounds."};
 }
 
 function refreshBookmarklet(key){
@@ -2769,11 +2827,90 @@ function searchAvailable(q, limit){
 }
 
 /* ---------- draft helpers ---------- */
+/* A snake is only the DEFAULT. MyFantasyLeague publishes an explicit order for every
+   round and, after this league's round-two blind bid, rounds 3 onward are not a snake
+   at all - each has its own sequence. When an explicit order is loaded it is the truth
+   for every pick; otherwise fall back to snaking. */
 const teamOnClock = ov => {
+  const o = state.order;
+  if(o && ov < o.length && o[ov] !== undefined && o[ov] !== null) return o[ov];
   const r = Math.floor(ov / state.teams);        // 0-indexed round
   const i = ov % state.teams;
   return (r % 2 === 0) ? i : (state.teams - 1 - i);   // snake
 };
+
+/* Adopt an explicit order. Because it is authoritative for every slot, any picks
+   already recorded are re-attributed to whoever actually owns that slot - the order
+   is a statement of fact about the draft, not a preference. */
+function setDraftOrder(list){
+  if(!list || !list.length){
+    state.order = null;
+    delete state.orderByLeague[state.league];
+  } else {
+    state.order = list.slice();
+    state.orderByLeague[state.league] = state.order;
+  }
+  state.picks.forEach(function(pk, i){ pk.team = teamOnClock(i); });
+  save();
+}
+
+/* Parse MyFantasyLeague's published draftResults into a per-pick team list.
+   Franchise ids are "0001".."00NN"; team index is that number minus one. */
+function parseMflOrder(text){
+  let d;
+  try{ d = (typeof text === "string") ? JSON.parse(text) : text; }
+  catch(e){ return {error:"That is not valid JSON."}; }
+  const unit = d && d.draftResults && d.draftResults.draftUnit;
+  const raw = unit && (unit.draftPick || unit.draftpick);
+  if(!Array.isArray(raw) || !raw.length) return {error:"No draftPick list in that JSON."};
+
+  const slots = [];
+  let maxRound = 0, drafted = [];
+  raw.forEach(function(p){
+    const rd = parseInt(p.round, 10), pk = parseInt(p.pick, 10);
+    const fr = parseInt(p.franchise, 10);
+    if(!isFinite(rd) || !isFinite(pk) || !isFinite(fr)) return;
+    maxRound = Math.max(maxRound, rd);
+    const overall = (rd - 1) * state.teams + (pk - 1);
+    slots[overall] = fr - 1;
+    if(p.player) drafted.push({overall:overall, mflId:String(p.player)});
+  });
+  const filled = slots.filter(function(x){ return x !== undefined; }).length;
+  if(!filled) return {error:"Could not read any pick slots."};
+  const bad = slots.filter(function(x){ return x !== undefined && (x < 0 || x >= state.teams); });
+  if(bad.length) return {error:"That order references teams outside this league."};
+  return {order:slots, rounds:maxRound, filled:filled, drafted:drafted};
+}
+
+/* Is the loaded order actually a snake? Worth saying out loud, because assuming it
+   is one is exactly the mistake this feature exists to prevent. */
+function describeOrder(){
+  const o = state.order;
+  if(!o) return "Standard snake.";
+  const t = state.teams, rounds = Math.ceil(o.length / t);
+  let snakeRounds = 0;
+  for(let r=0; r<rounds; r++){
+    let ok = true;
+    for(let i=0;i<t;i++){
+      const ov = r*t+i;
+      if(o[ov] === undefined){ ok = false; break; }
+      const expect = (r % 2 === 0) ? o[i] : o[t-1-i];
+      const base = (r % 2 === 0) ? o[i] : o[t-1-i];
+      if(base === undefined){ ok = false; break; }
+    }
+    // compare against round 1 forwards/backwards
+    const first = o.slice(0, t);
+    const thisR = o.slice(r*t, r*t+t);
+    const matches = (r % 2 === 0)
+      ? thisR.join() === first.join()
+      : thisR.join() === first.slice().reverse().join();
+    if(matches) snakeRounds++;
+  }
+  return snakeRounds === rounds
+    ? "Custom order loaded - it happens to be a pure snake."
+    : "Custom order loaded - " + (rounds - snakeRounds) + " of " + rounds +
+      " rounds do not follow the snake.";
+}
 const roundOf = ov => Math.floor(ov/state.teams)+1;
 const pickInRound = ov => (ov % state.teams)+1;
 /* never promise more picks than there are players on the board */
@@ -4110,6 +4247,18 @@ $("#draftWhenIn").addEventListener("change",function(){
   setDraftWhen(state.league, this.value);
   renderCountdown(state.league);
 });
+$("#orderGo").addEventListener("click",function(){
+  const r = loadOrderFromText($("#orderIn").value);
+  $("#orderMsg").innerHTML = r.error
+    ? '<span class="bad">' + esc(r.error) + "</span>"
+    : '<span class="good">' + esc(r.ok) + "</span>";
+  renderOrderState(); renderAll();
+});
+$("#orderClear").addEventListener("click",function(){
+  setDraftOrder(null);
+  $("#orderMsg").innerHTML = '<span class="faint">Back to a standard snake.</span>';
+  renderOrderState(); renderAll();
+});
 $("#draftIdSave").addEventListener("click",function(){
   setDraftId(state.league, $("#draftIdIn").value);
   setDraftWhen(state.league, $("#draftWhenIn").value);
@@ -4170,6 +4319,14 @@ function applyLeague(key){
   if(wIn) wIn.value = draftWhenFor(key);
   renderCountdown(key);
   renderDraftDiary();
+  renderOrderState();
+  const oh = $("#orderHow");
+  if(oh) oh.innerHTML = (key === "mfl12")
+    ? "This league is not a snake after round two. Paste the JSON from " +
+      "<code>www44.myfantasyleague.com/2026/export?TYPE=draftResults&amp;L=33101&amp;JSON=1</code> " +
+      "and the whole order loads - re-paste after the blind bid and it updates."
+    : "Only needed if your league does not use a standard snake. Paste one round of " +
+      "team numbers and it repeats, or paste a host's full order export.";
   refreshBookmarklet(key);
   $("#syncHow").innerHTML = (key==="sleeper12")
     ? 'Sleeper publishes this draft\'s picks as open JSON. Open ' +
@@ -4183,6 +4340,7 @@ function applyLeague(key){
     "Tiers, positional ranks, depth-chart ordering and all draft logic are computed from that ADP \u2014 no projections are used.";
   document.querySelectorAll(".planblock").forEach(function(b){ b.hidden = (b.dataset.league!==key); });
 
+  state.order = state.orderByLeague[key] || null;
   const saved = state.byLeague[key];
   if(saved && Array.isArray(saved.picks)){
     state.picks = saved.picks.filter(function(pk){ return byId.has(pk.playerId); });

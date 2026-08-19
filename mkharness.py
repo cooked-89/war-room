@@ -4,6 +4,15 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 src = open("draft-room.html", encoding="utf-8").read()
 guard = '<script>window.__errs=[];window.addEventListener("error",function(e){window.__errs.push(e.message+" @line "+e.lineno+":"+e.colno)});</script>\n'
 
+MFL_FIXTURE = '{"draftResults": {"draftUnit": {"draftPick": [{"round": "01", "pick": "01", "franchise": "0012", "player": ""}, {"round": "01", "pick": "02", "franchise": "0008", "player": ""}, {"round": "01", "pick": "03", "franchise": "0006", "player": ""}, {"round": "01", "pick": "04", "franchise": "0002", "player": ""}, {"round": "01", "pick": "05", "franchise": "0009", "player": ""}, {"round": "01", "pick": "06", "franchise": "0004", "player": ""}, {"round": "01", "pick": "07", "franchise": "0005", "player": ""}, {"round": "01", "pick": "08", "franchise": "0001", "player": ""}, {"round": "01", "pick": "09", "franchise": "0011", "player": ""}, {"round": "01", "pick": "10", "franchise": "0007", "player": ""}, {"round": "01", "pick": "11", "franchise": "0010", "player": ""}, {"round": "01", "pick": "12", "franchise": "0003", "player": ""}, {"round": "02", "pick": "01", "franchise": "0003", "player": ""}, {"round": "02", "pick": "02", "franchise": "0010", "player": ""}, {"round": "02", "pick": "03", "franchise": "0007", "player": ""}, {"round": "02", "pick": "04", "franchise": "0011", "player": ""}, {"round": "02", "pick": "05", "franchise": "0001", "player": ""}, {"round": "02", "pick": "06", "franchise": "0005", "player": ""}, {"round": "02", "pick": "07", "franchise": "0004", "player": ""}, {"round": "02", "pick": "08", "franchise": "0009", "player": ""}, {"round": "02", "pick": "09", "franchise": "0002", "player": ""}, {"round": "02", "pick": "10", "franchise": "0006", "player": ""}, {"round": "02", "pick": "11", "franchise": "0008", "player": ""}, {"round": "02", "pick": "12", "franchise": "0012", "player": ""}, {"round": "03", "pick": "01", "franchise": "0003", "player": ""}, {"round": "03", "pick": "02", "franchise": "0008", "player": ""}, {"round": "03", "pick": "03", "franchise": "0005", "player": ""}, {"round": "03", "pick": "04", "franchise": "0012", "player": ""}, {"round": "03", "pick": "05", "franchise": "0009", "player": ""}, {"round": "03", "pick": "06", "franchise": "0010", "player": ""}, {"round": "03", "pick": "07", "franchise": "0006", "player": ""}, {"round": "03", "pick": "08", "franchise": "0007", "player": ""}, {"round": "03", "pick": "09", "franchise": "0002", "player": ""}, {"round": "03", "pick": "10", "franchise": "0004", "player": ""}, {"round": "03", "pick": "11", "franchise": "0011", "player": ""}, {"round": "03", "pick": "12", "franchise": "0001", "player": ""}, {"round": "04", "pick": "01", "franchise": "0006", "player": ""}, {"round": "04", "pick": "02", "franchise": "0010", "player": ""}, {"round": "04", "pick": "03", "franchise": "0005", "player": ""}, {"round": "04", "pick": "04", "franchise": "0011", "player": ""}, {"round": "04", "pick": "05", "franchise": "0001", "player": ""}, {"round": "04", "pick": "06", "franchise": "0009", "player": ""}, {"round": "04", "pick": "07", "franchise": "0008", "player": ""}, {"round": "04", "pick": "08", "franchise": "0007", "player": ""}, {"round": "04", "pick": "09", "franchise": "0004", "player": ""}, {"round": "04", "pick": "10", "franchise": "0012", "player": ""}, {"round": "04", "pick": "11", "franchise": "0003", "player": ""}, {"round": "04", "pick": "12", "franchise": "0002", "player": ""}, {"round": "05", "pick": "01", "franchise": "0002", "player": ""}, {"round": "05", "pick": "02", "franchise": "0003", "player": ""}, {"round": "05", "pick": "03", "franchise": "0012", "player": ""}, {"round": "05", "pick": "04", "franchise": "0004", "player": ""}, {"round": "05", "pick": "05", "franchise": "0007", "player": ""}, {"round": "05", "pick": "06", "franchise": "0008", "player": ""}, {"round": "05", "pick": "07", "franchise": "0009", "player": ""}, {"round": "05", "pick": "08", "franchise": "0001", "player": ""}, {"round": "05", "pick": "09", "franchise": "0011", "player": ""}, {"round": "05", "pick": "10", "franchise": "0005", "player": ""}, {"round": "05", "pick": "11", "franchise": "0010", "player": ""}, {"round": "05", "pick": "12", "franchise": "0006", "player": ""}, {"round": "06", "pick": "01", "franchise": "0003", "player": ""}, {"round": "06", "pick": "02", "franchise": "0008", "player": ""}, {"round": "06", "pick": "03", "franchise": "0004", "player": ""}, {"round": "06", "pick": "04", "franchise": "0001", "player": ""}, {"round": "06", "pick": "05", "franchise": "0011", "player": ""}, {"round": "06", "pick": "06", "franchise": "0002", "player": ""}, {"round": "06", "pick": "07", "franchise": "0006", "player": ""}, {"round": "06", "pick": "08", "franchise": "0012", "player": ""}, {"round": "06", "pick": "09", "franchise": "0007", "player": ""}, {"round": "06", "pick": "10", "franchise": "0005", "player": ""}, {"round": "06", "pick": "11", "franchise": "0010", "player": ""}, {"round": "06", "pick": "12", "franchise": "0009", "player": ""}, {"round": "07", "pick": "01", "franchise": "0009", "player": ""}, {"round": "07", "pick": "02", "franchise": "0010", "player": ""}, {"round": "07", "pick": "03", "franchise": "0005", "player": ""}, {"round": "07", "pick": "04", "franchise": "0007", "player": ""}, {"round": "07", "pick": "05", "franchise": "0012", "player": ""}, {"round": "07", "pick": "06", "franchise": "0006", "player": ""}, {"round": "07", "pick": "07", "franchise": "0002", "player": ""}, {"round": "07", "pick": "08", "franchise": "0011", "player": ""}, {"round": "07", "pick": "09", "franchise": "0001", "player": ""}, {"round": "07", "pick": "10", "franchise": "0004", "player": ""}, {"round": "07", "pick": "11", "franchise": "0008", "player": ""}, {"round": "07", "pick": "12", "franchise": "0003", "player": ""}, {"round": "08", "pick": "01", "franchise": "0012", "player": ""}, {"round": "08", "pick": "02", "franchise": "0005", "player": ""}, {"round": "08", "pick": "03", "franchise": "0002", "player": ""}, {"round": "08", "pick": "04", "franchise": "0010", "player": ""}, {"round": "08", "pick": "05", "franchise": "0008", "player": ""}, {"round": "08", "pick": "06", "franchise": "0006", "player": ""}, {"round": "08", "pick": "07", "franchise": "0011", "player": ""}, {"round": "08", "pick": "08", "franchise": "0007", "player": ""}, {"round": "08", "pick": "09", "franchise": "0003", "player": ""}, {"round": "08", "pick": "10", "franchise": "0009", "player": ""}, {"round": "08", "pick": "11", "franchise": "0004", "player": ""}, {"round": "08", "pick": "12", "franchise": "0001", "player": ""}, {"round": "09", "pick": "01", "franchise": "0001", "player": ""}, {"round": "09", "pick": "02", "franchise": "0004", "player": ""}, {"round": "09", "pick": "03", "franchise": "0009", "player": ""}, {"round": "09", "pick": "04", "franchise": "0003", "player": ""}, {"round": "09", "pick": "05", "franchise": "0007", "player": ""}, {"round": "09", "pick": "06", "franchise": "0011", "player": ""}, {"round": "09", "pick": "07", "franchise": "0006", "player": ""}, {"round": "09", "pick": "08", "franchise": "0008", "player": ""}, {"round": "09", "pick": "09", "franchise": "0010", "player": ""}, {"round": "09", "pick": "10", "franchise": "0002", "player": ""}, {"round": "09", "pick": "11", "franchise": "0005", "player": ""}, {"round": "09", "pick": "12", "franchise": "0012", "player": ""}, {"round": "10", "pick": "01", "franchise": "0001", "player": ""}, {"round": "10", "pick": "02", "franchise": "0011", "player": ""}, {"round": "10", "pick": "03", "franchise": "0010", "player": ""}, {"round": "10", "pick": "04", "franchise": "0008", "player": ""}, {"round": "10", "pick": "05", "franchise": "0007", "player": ""}, {"round": "10", "pick": "06", "franchise": "0012", "player": ""}, {"round": "10", "pick": "07", "franchise": "0006", "player": ""}, {"round": "10", "pick": "08", "franchise": "0004", "player": ""}, {"round": "10", "pick": "09", "franchise": "0009", "player": ""}, {"round": "10", "pick": "10", "franchise": "0003", "player": ""}, {"round": "10", "pick": "11", "franchise": "0005", "player": ""}, {"round": "10", "pick": "12", "franchise": "0002", "player": ""}, {"round": "11", "pick": "01", "franchise": "0002", "player": ""}, {"round": "11", "pick": "02", "franchise": "0005", "player": ""}, {"round": "11", "pick": "03", "franchise": "0003", "player": ""}, {"round": "11", "pick": "04", "franchise": "0009", "player": ""}, {"round": "11", "pick": "05", "franchise": "0004", "player": ""}, {"round": "11", "pick": "06", "franchise": "0006", "player": ""}, {"round": "11", "pick": "07", "franchise": "0012", "player": ""}, {"round": "11", "pick": "08", "franchise": "0007", "player": ""}, {"round": "11", "pick": "09", "franchise": "0008", "player": ""}, {"round": "11", "pick": "10", "franchise": "0010", "player": ""}, {"round": "11", "pick": "11", "franchise": "0011", "player": ""}, {"round": "11", "pick": "12", "franchise": "0001", "player": ""}, {"round": "12", "pick": "01", "franchise": "0009", "player": ""}, {"round": "12", "pick": "02", "franchise": "0001", "player": ""}, {"round": "12", "pick": "03", "franchise": "0004", "player": ""}, {"round": "12", "pick": "04", "franchise": "0011", "player": ""}, {"round": "12", "pick": "05", "franchise": "0012", "player": ""}, {"round": "12", "pick": "06", "franchise": "0003", "player": ""}, {"round": "12", "pick": "07", "franchise": "0007", "player": ""}, {"round": "12", "pick": "08", "franchise": "0006", "player": ""}, {"round": "12", "pick": "09", "franchise": "0002", "player": ""}, {"round": "12", "pick": "10", "franchise": "0008", "player": ""}, {"round": "12", "pick": "11", "franchise": "0005", "player": ""}, {"round": "12", "pick": "12", "franchise": "0010", "player": ""}]}}}'
+
+def fixture_js():
+    import json as _j
+    # chr(10) rather than an escape: generated-JS escapes keep getting eaten
+    tag_close = "</scr" + "ipt>"
+    return ("<script>window.MFL_FIXTURE = " + _j.dumps(MFL_FIXTURE) + ";"
+            + tag_close + chr(10))
+
 harness = r'''
 <script>
 (function(){
@@ -912,6 +921,83 @@ harness = r'''
     });
   });
 
+
+  step("mfl-order-parses-from-the-real-export",function(){
+    ensureLeagueOnly("mfl12");
+    var parsed=parseMflOrder(MFL_FIXTURE);
+    if(parsed.error) throw new Error(parsed.error);
+    if(parsed.rounds!==12) throw new Error("expected 12 rounds, got "+parsed.rounds);
+    if(parsed.filled!==144) throw new Error("expected 144 slots, got "+parsed.filled);
+    setDraftOrder(parsed.order);
+    // round 1 from the real export
+    var r1=state.order.slice(0,12).map(function(x){return x+1;});
+    if(r1.join()!=="12,8,6,2,9,4,5,1,11,7,10,3") throw new Error("round 1 wrong: "+r1.join());
+    // round 2 must be its mirror, round 3 must NOT be
+    var r2=state.order.slice(12,24).map(function(x){return x+1;});
+    var r3=state.order.slice(24,36).map(function(x){return x+1;});
+    if(r2.join()!==r1.slice().reverse().join()) throw new Error("round 2 should mirror round 1");
+    if(r3.join()===r1.join()||r3.join()===r2.slice().reverse().join())
+      throw new Error("round 3 should NOT follow the snake");
+    if(describeOrder().indexOf("do not follow the snake")<0)
+      throw new Error("app should say the order breaks the snake");
+    log.push("   (MFL: "+parsed.rounds+" rounds parsed, round 3 confirmed non-snake)");
+  });
+
+  step("clock-follows-the-loaded-order",function(){
+    ensureLeagueOnly("mfl12");
+    setDraftOrder(parseMflOrder(MFL_FIXTURE).order);
+    if(teamOnClock(0)!==11) throw new Error("pick 1 should be franchise 12 (index 11)");
+    if(teamOnClock(24)!==2)  throw new Error("round 3 pick 1 should be franchise 3 (index 2)");
+    if(teamOnClock(25)!==7)  throw new Error("round 3 pick 2 should be franchise 8 (index 7)");
+    // and picks recorded under it get the right owner
+    state.sim=false; state.picks=[];
+    makePick(PLAYERS[0].id); makePick(PLAYERS[1].id);
+    if(state.picks[0].team!==11||state.picks[1].team!==7)
+      throw new Error("picks not attributed to the loaded order");
+  });
+
+  step("loading-an-order-reattributes-existing-picks",function(){
+    ensureLeagueOnly("mfl12");
+    setDraftOrder(null);
+    state.sim=false; state.picks=[];
+    makePick(PLAYERS[0].id); makePick(PLAYERS[1].id); makePick(PLAYERS[2].id);
+    var snakeTeams=state.picks.map(function(pk){return pk.team;}).join();
+    setDraftOrder(parseMflOrder(MFL_FIXTURE).order);
+    var newTeams=state.picks.map(function(pk){return pk.team;}).join();
+    if(snakeTeams===newTeams) throw new Error("existing picks were not re-attributed");
+    state.picks.forEach(function(pk,i){
+      if(pk.team!==teamOnClock(i)) throw new Error("pick "+i+" disagrees with the order");
+    });
+  });
+
+  step("order-survives-a-league-switch",function(){
+    ensureLeagueOnly("mfl12");
+    setDraftOrder(parseMflOrder(MFL_FIXTURE).order);
+    var first=teamOnClock(24);
+    applyLeague("espn10");
+    if(state.order!==null) throw new Error("espn should be back on a snake");
+    if(teamOnClock(0)!==0) throw new Error("espn snake broken");
+    applyLeague("mfl12");
+    if(!state.order) throw new Error("mfl order not restored");
+    if(teamOnClock(24)!==first) throw new Error("restored order differs");
+  });
+
+  step("one-round-order-repeats",function(){
+    ensureLeagueOnly("mfl12");
+    setDraftOrder(null);
+    var r=loadOrderFromText("3,8,5,12,9,10,6,7,2,4,11,1");
+    if(r.error) throw new Error(r.error);
+    if(teamOnClock(0)!==2) throw new Error("first pick wrong");
+    if(teamOnClock(12)!==2) throw new Error("order should repeat, not snake");
+    var bad=loadOrderFromText("1,2,3");
+    if(!bad.error) throw new Error("short order should be rejected");
+    var bad2=loadOrderFromText("1,2,3,4,5,6,7,8,9,10,11,99");
+    if(!bad2.error) throw new Error("out-of-range team should be rejected");
+    var bad3=loadOrderFromText("{\"nonsense\":true}");
+    if(!bad3.error) throw new Error("bad JSON should be rejected");
+    setDraftOrder(null);
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;
@@ -994,5 +1080,5 @@ harness = r'''
 </script>
 '''
 
-open("test-harness.html","w",encoding="utf-8").write(guard + src + harness + '\n<script>\n/* Independent of the suite: if the harness itself dies, say why. */\nsetTimeout(function(){\n  if(document.getElementById("TESTLOG")) return;\n  var pre=document.createElement("pre"); pre.id="CRASHLOG";\n  pre.textContent = "HARNESS DID NOT FINISH\nerrors: " +\n    ((window.__errs && window.__errs.length) ? window.__errs.join(" | ") : "(none recorded)");\n  document.body.appendChild(pre);\n}, 60000);\n</script>\n')
+open("test-harness.html","w",encoding="utf-8").write(guard + src + fixture_js() + harness + '\n<script>\n/* Independent of the suite: if the harness itself dies, say why. */\nsetTimeout(function(){\n  if(document.getElementById("TESTLOG")) return;\n  var pre=document.createElement("pre"); pre.id="CRASHLOG";\n  pre.textContent = "HARNESS DID NOT FINISH\nerrors: " +\n    ((window.__errs && window.__errs.length) ? window.__errs.join(" | ") : "(none recorded)");\n  document.body.appendChild(pre);\n}, 60000);\n</script>\n')
 print("harness written")

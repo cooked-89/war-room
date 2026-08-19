@@ -123,6 +123,16 @@ setTimeout(function(){
         importFromHash();
         location.hash = "";
       }],
+    ["custom order",  function(){
+        if(rnd() < 0.5){ setDraftOrder(null); return; }
+        var o=[], t=state.teams;
+        for(var r=0;r<state.rounds;r++){
+          var round=[]; for(var i=0;i<t;i++) round.push(i);
+          for(var i=t-1;i>0;i--){ var j=iRnd(i+1); var tmp=round[i]; round[i]=round[j]; round[j]=tmp; }
+          o=o.concat(round);
+        }
+        setDraftOrder(o);
+      }],
     ["sort",          function(){ state.sortBy = pick(["adp","vorp","proj"]); }],
     ["live adp",      function(){ state.useLiveAdp = !state.useLiveAdp; applyLeague(state.league); }],
     ["change rounds", function(){ state.rounds = 13 + iRnd(4); }],
