@@ -308,10 +308,10 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       <span class="sub" id="stamp"></span>
       <label class="fld" style="margin-left:auto">League
         <select id="league">
-          <option value="espn10">ESPN — My 2026 League (10-tm standard)</option>
-          <option value="cbs12">CBS — Chewey's (12-tm standard)</option>
-          <option value="mfl12">MFL — SWFFL (12-tm PPR)</option>
-          <option value="sleeper12">Sleeper — PL/Siena JV (12-tm superflex)</option>
+          <option value="espn10">ESPN · 10-team standard</option>
+          <option value="cbs12">CBS · 12-team standard, 6-pt pass TD</option>
+          <option value="mfl12">MFL · 12-team PPR</option>
+          <option value="sleeper12">Sleeper · 12-team superflex</option>
         </select>
       </label>
     </div>
@@ -408,9 +408,20 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
             <span id="syncMsg" style="font-size:12.5px"></span>
           </div>
           <div id="liveWrap" hidden style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
-            <label class="fld" style="font-size:13.5px; color:var(--ink)">
+            <label class="fld" style="font-size:13.5px; color:var(--ink); flex-wrap:wrap">
               <input type="checkbox" id="liveOn"> <strong>Live sync</strong> — read this draft from Sleeper every 15s
             </label>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap">
+              <label class="fld" style="flex:1; min-width:190px">
+                Draft ID
+                <input type="text" id="draftIdIn" placeholder="the number in your draft URL"
+                       style="flex:1; min-width:0; font-family:var(--mono); font-size:11.5px">
+              </label>
+              <button class="btn sm" id="draftIdSave">Save</button>
+            </div>
+            <p class="faint" style="margin:6px 0 0; font-size:11.5px">
+              Stored on this device only. Find it in your Sleeper draft URL.
+            </p>
             <div id="liveMsg" style="font-size:12.5px; margin-top:6px" class="faint">Off.</div>
           </div>
           <div id="bmWrap" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
@@ -419,7 +430,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
               Make a new browser bookmark and paste this as its <em>address</em>. During the draft,
               click it — the board fills in and re-clicking updates the same tab. Works from any page.
             </p>
-            <input id="bmCode" readonly value="javascript:(async function(){try{var r=await fetch('https://api.sleeper.app/v1/draft/1389704038232121345/picks');var j=await r.json();j.sort(function(a,b){return a.pick_no-b.pick_no});var n=j.map(function(p){return (p.metadata.first_name+' '+p.metadata.last_name).trim()}).join('|');window.open('https://claude.ai/code/artifact/00fcfaf5-4135-4ae3-bcfa-68d26057a28c#draft=sleeper12:'+encodeURIComponent(n),'warroom');}catch(e){alert('War Room sync failed: '+e.message)}})()"
+            <input id="bmCode" readonly value=""
               style="width:100%; font-family:var(--mono); font-size:10.5px; padding:6px;
                      border:1px solid var(--line-2); border-radius:6px;
                      background:var(--surface-2); color:var(--ink-2)">
@@ -608,9 +619,9 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
 
   <!-- ============ 12-TEAM FULL PPR (the other league) ============ -->
   <div class="planblock" data-league="cbs12" hidden>
-    <h2>Chewey's: the quarterback league</h2>
+    <h2>The quarterback league</h2>
     <p>
-      Standard scoring, 12 teams, 16 rounds, $1,250 buy-in. Two settings make this
+      Standard scoring, 12 teams, 16 rounds, and real money on the line. Two settings make this
       unlike anything else you're playing, and both are easy to miss.
     </p>
 
@@ -665,7 +676,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
   </div>
 
   <div class="planblock" data-league="mfl12" hidden>
-    <h2>SWFFL: the shallow-roster PPR league</h2>
+    <h2>The shallow-roster PPR league</h2>
     <p>
       12 teams, full PPR, and a <strong>twelve-man roster</strong> — eight starters and only
       four bench spots. That last number drives everything.
@@ -708,7 +719,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
   </div>
 
   <div class="planblock" data-league="sleeper12" hidden>
-    <h2>PL/Siena JV: superflex changes the whole game</h2>
+    <h2>Superflex changes the whole game</h2>
     <p>
       12 teams, full PPR, 14 rounds, and a <strong>superflex</strong> slot — you may start a
       second quarterback in it, and you almost always should. There are no kickers and no
@@ -761,7 +772,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
     <p>
       Sleeper is the one host of your four that publishes draft picks openly. Use the
       <strong>Sync</strong> panel on the Draft tab — paste the JSON from
-      <code>api.sleeper.app/v1/draft/1389704038232121345/picks</code> and the entire board
+      <code>api.sleeper.app/v1/draft/&lt;your-draft-id&gt;/picks</code> and the entire board
       rebuilds instantly. Re-paste whenever you want to catch up.
     </p>
   </div>
@@ -1931,34 +1942,34 @@ const SCORING = {
 };
 
 const LEAGUES = {
-  espn10:{ key:"espn10", label:"ESPN — My 2026 League", host:"ESPN",
+  espn10:{ key:"espn10", label:"ESPN · 10-team standard", host:"ESPN",
     teams:10, rounds:15, scoring:"Standard (non-PPR)", raw:ADP_STD,
     lineup:[["QB",1],["RB",2],["WR",2],["TE",1],["FLEX",1],["PK",1],["DEF",1]],
     need:{QB:1,RB:2,WR:2,TE:1,PK:1,DEF:1},
     aiNeed:{QB:1,RB:2,WR:2,TE:1,PK:1,DEF:1},
     drop:[], source:"1,420 non-PPR mocks, Aug 9–16 2026" },
 
-  cbs12:{ key:"cbs12", label:"CBS — Chewey's Fantasy League", host:"CBS",
+  cbs12:{ key:"cbs12", label:"CBS · 12-team standard", host:"CBS",
     teams:12, rounds:16, scoring:"Standard, 6-pt pass TD", raw:ADP_STD,
     lineup:[["QB",1],["RB",2],["WR",2],["TE",1],["PK",1],["DEF",1]],
     need:{QB:2,RB:2,WR:2,TE:2,PK:2,DEF:2},
     aiNeed:{QB:2,RB:2,WR:2,TE:1,PK:1,DEF:1},
     drop:[], source:"1,420 non-PPR mocks, Aug 9–16 2026" },
 
-  mfl12:{ key:"mfl12", label:"MFL — SWFFL", host:"MyFantasyLeague",
+  mfl12:{ key:"mfl12", label:"MFL · 12-team PPR", host:"MyFantasyLeague",
     teams:12, rounds:12, scoring:"PPR, distance-scaled TDs", raw:ADP_PPR,
     lineup:[["QB",1],["RB",2],["WR",2],["FLEX",1],["PK",1],["DEF",1]],
     need:{QB:1,RB:2,WR:2,TE:0,PK:1,DEF:1},
     aiNeed:{QB:1,RB:2,WR:2,TE:0,PK:1,DEF:1},
     drop:[], source:"6,565 PPR mocks, Aug 9–16 2026" },
 
-  sleeper12:{ key:"sleeper12", label:"Sleeper — PL/Siena JV", host:"Sleeper",
+  sleeper12:{ key:"sleeper12", label:"Sleeper · 12-team superflex", host:"Sleeper",
     teams:12, rounds:14, scoring:"PPR superflex (2QB)", raw:ADP_2QB,
     lineup:[["QB",1],["RB",2],["WR",3],["TE",1],["FLEX",1],["SFLEX",1]],
     need:{QB:2,RB:2,WR:3,TE:1,PK:0,DEF:0},
     aiNeed:{QB:2,RB:2,WR:3,TE:1,PK:0,DEF:0},
     drop:["PK","DEF"], source:"3,993 2QB mocks, Jul 17–Aug 16 2026",
-    draftId:"1389704038232121345" }
+    liveFeed:"sleeper" }
 };
 
 const BYES = {KC:5,CAR:5, MIA:6,CIN:6,DET:6,MIN:6, BUF:7,LAC:7,WAS:7,JAX:7,
@@ -2022,6 +2033,21 @@ const INTEL = {
 let PLAYERS=[], byId=new Map(), byName=new Map(), TIER_SIZE={}, LINEUP=[], NEED={}, AI_NEED={};
 let NORM = new Map();
 let REPLACEMENT = {};
+
+/* The draft id identifies a specific private league, so it lives on the device
+   rather than in the source. Entered once, kept in localStorage, never published. */
+const DRAFTID_KEY = "warroom.draftIds.v1";
+function draftIds(){
+  try{ return JSON.parse(localStorage.getItem(DRAFTID_KEY) || "{}") || {}; }
+  catch(e){ return {}; }
+}
+function draftIdFor(key){ return (draftIds()[key] || "").trim(); }
+function setDraftId(key, val){
+  const all = draftIds();
+  val = String(val || "").trim();
+  if(val) all[key] = val; else delete all[key];
+  try{ localStorage.setItem(DRAFTID_KEY, JSON.stringify(all)); }catch(e){}
+}
 
 /* Fold the spelling differences between hosts: punctuation, generational
    suffixes and casing all vary between ESPN, CBS, MFL and Sleeper. */
@@ -2268,6 +2294,22 @@ function liveAdpFor(row, key){
   if(key === "sleeper12") return row.adp2qb;
   if(key === "mfl12")     return row.adpPpr;
   return row.adpStd;
+}
+
+/* Built at runtime so the published source carries no league identifier. */
+function refreshBookmarklet(key){
+  const field = $("#bmCode");
+  if(!field) return;
+  const id = draftIdFor(key);
+  if(!id){ field.value = "Enter your draft ID above first."; return; }
+  field.value =
+    "javascript:(async function(){try{" +
+    "var r=await fetch('https://api.sleeper.app/v1/draft/" + id + "/picks');" +
+    "var j=await r.json();" +
+    "j.sort(function(a,b){return a.pick_no-b.pick_no});" +
+    "var n=j.map(function(p){return (p.metadata.first_name+' '+p.metadata.last_name).trim()}).join('|');" +
+    "window.open('" + location.origin + location.pathname + "#draft=" + key + ":'+encodeURIComponent(n),'warroom');" +
+    "}catch(e){alert('War Room sync failed: '+e.message)}})()";
 }
 
 function dataStamp(){
@@ -2980,6 +3022,14 @@ function showHashResult(res){
   if(msg) msg.innerHTML = importMessage(res, LEAGUES[res.league].host+" (one-click sync)");
 }
 $("#syncGo").addEventListener("click",runImport);
+$("#draftIdSave").addEventListener("click",function(){
+  setDraftId(state.league, $("#draftIdIn").value);
+  refreshBookmarklet(state.league);
+  const msg = $("#liveMsg");
+  if(msg) msg.innerHTML = draftIdFor(state.league)
+    ? '<span class="good">Draft ID saved on this device.</span>'
+    : '<span class="faint">Draft ID cleared.</span>';
+});
 $("#bmCopy").addEventListener("click",function(){
   const f=$("#bmCode"); f.select(); f.setSelectionRange(0,99999);
   try{ document.execCommand("copy"); this.textContent="Copied"; }
@@ -3011,11 +3061,14 @@ function applyLeague(key){
   $("#league").value = key;
   $("#simCount").textContent = L.teams-1;
   const lw = $("#liveWrap");
-  if(lw) lw.hidden = !(L.draftId && window.LIVE_CAPABLE);
-  $("#bmWrap").hidden = !(L.draftId) || !!window.LIVE_CAPABLE;
+  if(lw) lw.hidden = !(L.liveFeed && window.LIVE_CAPABLE);
+  $("#bmWrap").hidden = !(L.liveFeed) || !!window.LIVE_CAPABLE;
+  const dIn = $("#draftIdIn");
+  if(dIn) dIn.value = draftIdFor(key);
+  refreshBookmarklet(key);
   $("#syncHow").innerHTML = (key==="sleeper12")
     ? 'Sleeper publishes this draft\'s picks as open JSON. Open ' +
-      '<code>api.sleeper.app/v1/draft/1389704038232121345/picks</code> in a tab, select all, ' +
+      '<code>api.sleeper.app/v1/draft/' + (draftIdFor(key) || '&lt;your-draft-id&gt;') + '/picks</code> in a tab, select all, ' +
       'and paste it here — the whole board rebuilds. Re-paste any time to catch up.'
     : L.host+' has no public draft feed, so paste player names instead — one per line, ' +
       'in the order they were taken. Auto-draft turns itself off when you import.';
@@ -3091,9 +3144,11 @@ function liveStatus(msg, cls) {
 
 async function livePoll() {
   var L = LEAGUES[state.league];
-  if (!L || !L.draftId) return;
+  var id = (typeof draftIdFor === "function") ? draftIdFor(state.league) : "";
+  if (!L || !L.liveFeed) return;
+  if (!id) { liveStatus("Enter your draft ID above, then tick Live sync.", "warn"); return; }
   try {
-    var r = await fetch("https://api.sleeper.app/v1/draft/" + L.draftId + "/picks", { cache: "no-store" });
+    var r = await fetch("https://api.sleeper.app/v1/draft/" + id + "/picks", { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     var j = await r.json();
     LIVE.fails = 0;
@@ -3129,7 +3184,7 @@ function liveToggle(on) {
 
 document.addEventListener("DOMContentLoaded", function () {
   var lw = document.getElementById("liveWrap");
-  if (lw) lw.hidden = !(LEAGUES[state.league] && LEAGUES[state.league].draftId);
+  if (lw) lw.hidden = !(LEAGUES[state.league] && LEAGUES[state.league].liveFeed);
   var bm = document.getElementById("bmWrap"); if (bm) bm.hidden = true;
   var box = document.getElementById("liveOn");
   if (box) box.addEventListener("change", function (e) { liveToggle(e.target.checked); });
