@@ -355,7 +355,13 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
   <div class="toolbar" style="margin-top:-6px">
     <span id="dataMsg" style="font-size:12px"></span>
     <button class="btn sm" id="dataRefresh">Refresh</button>
-    <label class="fld"><input type="checkbox" id="liveAdp"> Use Sleeper ADP</label>
+    <label class="fld">ADP
+      <select id="adpSource" title="Which market to price players by">
+        <option value="blend">Both, averaged</option>
+        <option value="board">Mock-draft consensus</option>
+        <option value="sleeper">Sleeper drafts</option>
+      </select>
+    </label>
   </div>
   <div class="card scroller">
     <table class="board">
@@ -2261,12 +2267,27 @@ function buildLeague(key){
     return {id:i, name:parts[0], pos:parts[1], team:parts[2],
             adp:parseFloat(parts[3]), bye:BYES[parts[2]]||null};
   }).filter(function(p){ return drop.indexOf(p.pos) === -1; });
-  if(state.useLiveAdp && LIVEDATA){
+  /* Two independent markets: mock-draft consensus (the baked board) and what actually
+     happens in Sleeper drafts. Averaging them is steadier than trusting either, and the
+     gap between them is itself a signal - a player the two disagree about by twenty picks
+     is either mispriced or one source is stale. Both are format-specific, so this is
+     already "adjusted for each league's scoring" rather than one list reused everywhere. */
+  PLAYERS.forEach(function(p){
+    p.adpBoard = p.adp;
+    p.adpLive = null;
+  });
+  if(LIVEDATA){
     PLAYERS.forEach(function(p){
       const a = liveAdpFor(liveLookup(p), key);
-      if(a && a > 0 && a < 400) p.adp = a;
+      if(a && a > 0 && a < 400) p.adpLive = a;
     });
   }
+  PLAYERS.forEach(function(p){
+    const mode = state.adpSource || "blend";
+    if(mode === "sleeper" && p.adpLive !== null) p.adp = p.adpLive;
+    else if(mode === "blend" && p.adpLive !== null) p.adp = (p.adpBoard + p.adpLive) / 2;
+    else p.adp = p.adpBoard;
+  });
   PLAYERS.sort(function(a,b){ return a.adp-b.adp; });
   PLAYERS.forEach(function(p,i){ p.ovr=i+1; });
 
@@ -2331,7 +2352,7 @@ const state = {
   filter:"ALL", query:"", hideGone:false, onlyStar:false,
   star:new Set(), avoid:new Set(),
   league:"espn10", teams:10, slot:1, rounds:15, sim:true,
-  sortBy:"adp", useLiveAdp:false,
+  sortBy:"adp", useLiveAdp:false, adpSource:"blend",
   tradeOut:new Set(), tradeIn:new Set(),
   byLeague:{},        // league key -> {picks, seed, slot} so drafts survive a switch
   order:null,         // explicit team index per overall pick, or null for a snake
@@ -2346,6 +2367,7 @@ function save(){
     stashLeague();
     localStorage.setItem(LS, JSON.stringify({
       league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp,
+      adpSource:state.adpSource,
       slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
       picks:state.picks, byLeague:state.byLeague, orderByLeague:state.orderByLeague,
       star:[...state.star], avoid:[...state.avoid]
@@ -2359,6 +2381,7 @@ function load(){
     if(d.league && LEAGUES[d.league]) state.league=d.league;
     if(d.sortBy) state.sortBy=d.sortBy;
     if(typeof d.useLiveAdp==="boolean") state.useLiveAdp=d.useLiveAdp;
+    if(d.adpSource) state.adpSource=d.adpSource;
     if(d.slot) state.slot=d.slot;
     // clamp: an older save may hold a round count no longer offered
     if(d.rounds) state.rounds=Math.max(13, Math.min(16, d.rounds));
@@ -2449,8 +2472,8 @@ function attachProjections(key){
     /* The board's ADP is mock-draft consensus; Sleeper's is what actually happens in
        Sleeper drafts. Where they disagree sharply, one of them is stale or the market
        is split — either way it is worth seeing. */
-    const alt = liveAdpFor(live, key);
-    p.adpAlt = (alt && alt > 0 && alt < 400 && !state.useLiveAdp) ? alt : null;
+    p.adpAlt = (p.adpLive !== null && p.adpBoard !== null &&
+                Math.abs(p.adpLive - p.adpBoard) >= 1) ? p.adpLive : null;
     if(!r){ p.proj = null; return; }
     p.proj = Math.round(scoreRow(r, S, p.pos) * 10) / 10;
   });
@@ -2686,7 +2709,9 @@ function dataStamp(){
               : new Date(LIVEDATA.at).toLocaleString());
   el.innerHTML = '<span class="good">Live projections</span> <span class="faint">from Sleeper, '
     + when + " · " + LIVEDATA.rows.length + " players"
-    + (state.useLiveAdp ? " · using Sleeper ADP" : " · ADP from mock-draft consensus") + "</span>";
+    + " · ADP " + ({blend:"averaged across both markets",
+                        board:"from mock-draft consensus",
+                        sleeper:"from Sleeper drafts"}[state.adpSource || "blend"]) + "</span>";
 }
 
 async function refreshLive(silent){
@@ -3133,11 +3158,13 @@ function injBadge(p){
 
 function adpGapNote(p){
   if(p.adpAlt === null || p.adpAlt === undefined) return "";
-  const gap = p.adpAlt - p.adp;
+  if(p.adpBoard === undefined || p.adpBoard === null) return "";
+  const gap = p.adpLive - p.adpBoard;      // always source-vs-source
   if(Math.abs(gap) < 12) return "";
   const cheaper = gap > 0;      // Sleeper drafters let him fall further
   return ' <span class="chip ' + (cheaper ? "sleeper" : "bust") +
-    '" title="Board ADP ' + p.adp.toFixed(0) + ', Sleeper ADP ' + p.adpAlt.toFixed(0) +
+    '" title="Mock-draft consensus ' + p.adpBoard.toFixed(0) +
+    ', Sleeper drafts ' + p.adpLive.toFixed(0) + ' - the two markets disagree' +
     '" style="padding:1px 5px; font-size:10px">' +
     (cheaper ? "falls " : "rises ") + Math.abs(Math.round(gap)) + "</span>";
 }
@@ -4308,9 +4335,9 @@ $("#slotPlanGo").addEventListener("click",function(){
     b.disabled=false; b.textContent="Simulate 24 drafts";
   }, 30);
 });
-$("#liveAdp").addEventListener("change",function(e){
-  state.useLiveAdp=e.target.checked;
-  if(state.useLiveAdp && !LIVEDATA){ refreshLive(false); return; }
+$("#adpSource").addEventListener("change",function(e){
+  state.adpSource=e.target.value;
+  if(state.adpSource!=="board" && !LIVEDATA){ refreshLive(false); return; }
   applyLeague(state.league); reseed(); runSim(); save();
   renderCliffs(); renderSOS(); renderDraftDiary(); renderAll(); dataStamp();
 });
@@ -4685,7 +4712,7 @@ $("#p-board").hidden=false;
 [...$("#sortby").children].forEach(function(x){
   x.setAttribute("aria-pressed", x.dataset.s===state.sortBy);
 });
-$("#liveAdp").checked = state.useLiveAdp;
+$("#adpSource").value = state.adpSource;
 renderAll();
 dataStamp();
 showHashResult(hashRes);

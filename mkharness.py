@@ -270,19 +270,6 @@ harness = r'''
     log.push("   (live merge + fallback verified on "+target.name+")");
   });
 
-  step("live-adp-toggle-retiers",function(){
-    LIVEDATA=liveRowsToMaps(PLAYERS.slice(0,40).map(function(p,i){
-      return {name:p.name,pos:p.pos,team:p.team,gp:18,passYd:0,passTd:0,int:0,rushYd:0,
-              rushTd:0,rec:0,recYd:0,recTd:0,fum:0,sleeperPts:10,
-              adpStd:40-i,adpPpr:40-i,adp2qb:40-i,inj:""};
-    }), Date.now());
-    state.useLiveAdp=true; applyLeague("espn10");
-    var top=PLAYERS[0].name;
-    state.useLiveAdp=false; LIVEDATA=null; applyLeague("espn10");
-    if(top===PLAYERS[0].name) throw new Error("live ADP did not change the board order");
-  });
-
-
   step("kickers-and-defenses-have-projections",function(){
     ["espn10","cbs12","mfl12"].forEach(function(k){
       applyLeague(k);
@@ -1094,6 +1081,40 @@ harness = r'''
     var bad=applyMflHash("#mfl="+encodeURIComponent(JSON.stringify({league:"mfl12",order:[0,1,99]})));
     if(!bad.error) throw new Error("out-of-range team should be rejected");
     setDraftOrder(null); state.picks=[];
+  });
+
+
+  step("adp-sources-blend-and-switch",function(){
+    ensureLeagueOnly("espn10");
+    var t=PLAYERS.find(function(p){return p.pos==="WR"});
+    var boardAdp=t.adpBoard!==undefined?t.adpBoard:t.adp;
+    // stand in for the live market with a deliberately different price
+    LIVEDATA=liveRowsToMaps([{name:t.name,pos:t.pos,team:t.team,gp:18,passYd:0,passTd:0,int:0,
+      rushYd:0,rushTd:0,rec:80,recYd:1000,recTd:6,fum:0,sleeperPts:120,
+      adpStd:boardAdp+40, adpPpr:boardAdp+40, adp2qb:boardAdp+40, inj:""}], Date.now());
+
+    state.adpSource="board"; applyLeague("espn10");
+    var a=PLAYERS.find(function(p){return p.name===t.name;});
+    if(Math.abs(a.adp-boardAdp)>0.01) throw new Error("board mode should use the board price");
+
+    state.adpSource="sleeper"; applyLeague("espn10");
+    var b=PLAYERS.find(function(p){return p.name===t.name;});
+    if(Math.abs(b.adp-(boardAdp+40))>0.01) throw new Error("sleeper mode should use the live price");
+
+    state.adpSource="blend"; applyLeague("espn10");
+    var c=PLAYERS.find(function(p){return p.name===t.name;});
+    if(Math.abs(c.adp-(boardAdp+20))>0.01)
+      throw new Error("blend should average the two: expected "+(boardAdp+20)+", got "+c.adp);
+    if(adpGapNote(c).indexOf("falls")<0) throw new Error("a 40-pick gap should be flagged");
+
+    // a player only one source knows about must not be dropped or NaN'd
+    var solo=PLAYERS.find(function(p){return p.adpLive===null;});
+    if(solo && !isFinite(solo.adp)) throw new Error("single-source player lost its price");
+
+    LIVEDATA=null; state.adpSource="blend"; applyLeague("espn10");
+    var d=PLAYERS.find(function(p){return p.name===t.name;});
+    if(Math.abs(d.adp-boardAdp)>0.01) throw new Error("with no live data it must fall back to the board");
+    log.push("   (ADP blend: board "+boardAdp.toFixed(0)+", live "+(boardAdp+40).toFixed(0)+", blended "+(boardAdp+20).toFixed(0)+")");
   });
 
   // ---- importer ----

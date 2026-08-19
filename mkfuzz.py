@@ -134,7 +134,7 @@ setTimeout(function(){
         setDraftOrder(o);
       }],
     ["sort",          function(){ state.sortBy = pick(["adp","vorp","proj"]); }],
-    ["live adp",      function(){ state.useLiveAdp = !state.useLiveAdp; applyLeague(state.league); }],
+    ["adp source",    function(){ state.adpSource = pick(["blend","board","sleeper"]); applyLeague(state.league); }],
     ["change rounds", function(){ state.rounds = 13 + iRnd(4); }],
     ["trade toggle",  function(){
         var r = rosterOf(myIdx());
