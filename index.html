@@ -450,9 +450,14 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       <div class="card" style="margin-bottom:16px">
         <div class="card-h">
           <h3 id="recsTitle">Best available</h3>
-          <input type="text" id="dsearch" placeholder="Find any player…" style="max-width:200px">
+          <input type="text" id="dsearch" placeholder="Find any player — / to focus, Enter to draft" title="/ focuses this box, Enter drafts the top match, 1-6 draft that recommendation, u undoes" style="max-width:280px">
         </div>
         <div class="card-b" id="recs" style="padding-top:4px; padding-bottom:4px"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><h3>Your queue</h3><span class="eyebrow">starred and still there</span></div>
+        <div class="card-b" id="queueOut"></div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -822,6 +827,9 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       is where a schedule edge is actually worth drafting for.
     </p>
     <div id="sosOut"></div>
+
+    <h2>Draft calendar</h2>
+    <div id="diaryOut"></div>
     <p class="faint" style="font-size:12.5px">
       Opponent quality is measured by each defense's projected fantasy output — a proxy for
       how hard that defense is to play against. It cannot tell you a defense is tough on
@@ -2265,6 +2273,7 @@ const state = {
   league:"espn10", teams:10, slot:1, rounds:15, sim:true,
   sortBy:"adp", useLiveAdp:false,
   tradeOut:new Set(), tradeIn:new Set(),
+  byLeague:{},        // league key -> {picks, seed, slot} so drafts survive a switch
   seed:String(Math.floor(Math.random()*1e9)),  // fixes the AI teams' temperaments
   picks:[]   // {playerId, team (0-indexed), overall}
 };
@@ -2272,9 +2281,12 @@ function reseed(){ state.seed = String(Math.floor(Math.random()*1e9)); }
 
 function save(){
   try{
+    stashLeague();
     localStorage.setItem(LS, JSON.stringify({
-      league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp, slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
-      picks:state.picks, star:[...state.star], avoid:[...state.avoid]
+      league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp,
+      slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
+      picks:state.picks, byLeague:state.byLeague,
+      star:[...state.star], avoid:[...state.avoid]
     }));
   }catch(e){/* private mode — run without persistence */}
 }
@@ -2291,6 +2303,7 @@ function load(){
     if(typeof d.sim==="boolean") state.sim=d.sim;
     if(d.seed) state.seed=d.seed;
     if(Array.isArray(d.picks)) state.picks=d.picks;
+    if(d.byLeague && typeof d.byLeague === "object") state.byLeague=d.byLeague;
     if(Array.isArray(d.star)) state.star=new Set(d.star);
     if(Array.isArray(d.avoid)) state.avoid=new Set(d.avoid);
   }catch(e){}
@@ -2506,7 +2519,7 @@ async function refreshLive(silent){
   try{
     LIVEDATA = await fetchLive();
     applyLeague(state.league);
-    renderCliffs(); renderSOS(); renderAll();
+    renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
   }catch(e){
     const el = $("#dataMsg");
     if(el && !silent) el.innerHTML = '<span class="warn">Could not reach Sleeper — '
@@ -2514,6 +2527,54 @@ async function refreshLive(silent){
   }
   if(btn){ btn.disabled = false; btn.textContent = "Refresh"; }
   dataStamp();
+}
+
+/* Drafts that overlap are an operational problem, not a modelling one: two boards
+   open at once, one of them offline and typed by hand. Say so before draft day. */
+function draftClashes(){
+  const times = [];
+  Object.keys(LEAGUES).forEach(function(k){
+    const c = draftCountdown(k);
+    if(c && c.ms > -6*3600000) times.push({key:k, at:c.when.getTime(), c:c});
+  });
+  times.sort(function(a,b){ return a.at-b.at; });
+  const clash = [];
+  for(let i=1;i<times.length;i++){
+    if(times[i].at - times[i-1].at < 3*3600000) clash.push([times[i-1], times[i]]);
+  }
+  return {all:times, clash:clash};
+}
+
+function renderDraftDiary(){
+  const el = $("#diaryOut");
+  if(!el) return;
+  const d = draftClashes();
+  if(!d.all.length){
+    el.innerHTML = '<p class="faint" style="margin:0; font-size:12.5px">' +
+      "No draft times saved yet. Add them in the Sync panel on the Draft tab.</p>";
+    return;
+  }
+  const fmt = function(dt){
+    return dt.toLocaleDateString(undefined,{weekday:"short", month:"short", day:"numeric"}) +
+           " " + dt.toLocaleTimeString(undefined,{hour:"numeric", minute:"2-digit"});
+  };
+  el.innerHTML = d.all.map(function(t){
+    const L = LEAGUES[t.key];
+    const soon = t.c.hours <= 6 && t.c.ms > -6*3600000;
+    return '<div class="cliff"><span class="at">' + (t.c.days >= 1 ? t.c.days + "d" : "today") + "</span>" +
+      '<span class="muted" style="flex:1">' + (soon ? "<strong>" : "") + esc(L.label) + (soon ? "</strong>" : "") +
+      ' <span class="faint">· ' + fmt(t.c.when) + (L.liveFeed ? " · live sync" : " · manual entry") +
+      "</span></span></div>";
+  }).join("") +
+  (d.clash.length
+    ? '<div class="alert hot" style="margin-top:10px"><b>Overlapping drafts.</b> ' +
+      d.clash.map(function(pair){
+        return esc(LEAGUES[pair[0].key].label) + " and " + esc(LEAGUES[pair[1].key].label) +
+               " start within " + Math.round((pair[1].at-pair[0].at)/3600000) + "h of each other";
+      }).join("; ") +
+      ". Each league keeps its own board, so you can switch between them without losing either." +
+      "</div>"
+    : "");
 }
 
 /* ---------- strength of schedule ----------
@@ -2615,6 +2676,42 @@ function costOfWaiting(avail, here, next){
               drop: Math.round((list[0].vorp - expected.vorp) * 10) / 10});
   });
   return out.sort(function(a,b){ return b.drop-a.drop; });
+}
+
+/* ---------- fuzzy player search ----------
+   An offline draft means typing every pick while another draft runs in the next tab.
+   Three characters of a surname, or initials, should be enough. Ranked so the
+   obvious match wins: surname prefix beats first-name prefix beats a loose contains. */
+function matchScore(p, q){
+  if(!q) return 0;
+  const name = normName(p.name);
+  const parts = name.split(" ");
+  const last = parts[parts.length-1] || "";
+  const first = parts[0] || "";
+  const initials = parts.map(function(w){ return w[0]; }).join("");
+  if(name === q) return 100;
+  if(last === q) return 95;
+  if(last.indexOf(q) === 0) return 90 - Math.min(20, last.length - q.length);
+  if(name.indexOf(q) === 0) return 80;
+  if(first.indexOf(q) === 0) return 70;
+  if(initials === q.replace(/ /g,"")) return 65;
+  if(name.indexOf(q) > 0) return 50;
+  if(normName(p.team) === q) return 40;
+  return 0;
+}
+
+function searchAvailable(q, limit){
+  const needle = normName(q || "");
+  if(!needle) return [];
+  return available()
+    .map(function(p){ return {p:p, s:matchScore(p, needle)}; })
+    .filter(function(x){ return x.s > 0; })
+    .sort(function(a,b){
+      if(b.s !== a.s) return b.s - a.s;
+      return a.p.adp - b.p.adp;              // ties go to the better player
+    })
+    .slice(0, limit || 12)
+    .map(function(x){ return x.p; });
 }
 
 /* ---------- draft helpers ---------- */
@@ -2958,8 +3055,7 @@ function renderDraft(){
   if(done){
     $("#recs").innerHTML = `<p class="muted" style="padding:8px 0">Draft is complete.</p>`;
   } else if(dq){
-    const hits = available().filter(p=>
-      p.name.toLowerCase().includes(dq) || p.team.toLowerCase().includes(dq)).slice(0,12);
+    const hits = searchAvailable(dq, 12);
     $("#recs").innerHTML = hits.length
       ? hits.map((p,i)=>rowFor(p, i+1, `ADP ${p.adp.toFixed(1)} · ${p.pos} tier ${p.tier}`)).join("")
       : `<p class="muted" style="padding:8px 0">No available player matches "${esc(dq)}".</p>`;
@@ -2988,6 +3084,8 @@ function renderDraft(){
       return rowFor(p, i+1, bits.join(" · "));
     }).join("");
   }
+
+  renderQueue();
 
   // cost of waiting
   const cowEl = $("#cowOut"), cowMeta = $("#cowMeta");
@@ -3591,6 +3689,42 @@ function renderTrade(){
     (ev ? '<button class="btn sm" id="tradeClear" style="margin-top:12px">Clear</button>' : "");
 }
 
+/* ---------- queue ----------
+   Starred players who are still on the board, in board order. When you are running
+   two drafts at once you do not have time to re-read the big board every pick. */
+function renderQueue(){
+  const host = $("#queueOut");
+  if(!host) return;
+  const gone = takenIds();
+  const q = PLAYERS.filter(function(p){ return state.star.has(p.id) && !gone.has(p.id); });
+  const lost = PLAYERS.filter(function(p){ return state.star.has(p.id) && gone.has(p.id); });
+  if(!state.star.size){
+    host.innerHTML = '<p class="muted" style="margin:0; font-size:13px">' +
+      "Star players on the Big Board and they queue up here — the ones still available, in board order.</p>";
+    return;
+  }
+  const here = state.picks.length + 1;
+  const nm = nextMyPick();
+  host.innerHTML =
+    (q.length ? q.slice(0,12).map(function(p){
+      const s = nm === null ? 1 : survival(p, here, nm + 1);
+      const pct = Math.round(s * 100);
+      const cls = pct <= 25 ? "bad" : (pct >= 70 ? "good" : "muted");
+      return '<div class="rec" style="padding:6px 0">' +
+        posPill(p) +
+        '<div style="flex:1; min-width:0"><span class="pname">' + esc(p.name) + "</span>" +
+        injBadge(p) +
+        ' <span class="faint num" style="font-size:11px">' + p.adp.toFixed(0) +
+        (p.vorp === null ? "" : " · " + (p.vorp>0?"+":"") + p.vorp.toFixed(0)) + "</span>" +
+        ' <span class="' + cls + '" style="font-size:11px">' + (pct<5?"<5":pct) + "%</span></div>" +
+        '<button class="btn sm primary" data-draft="' + p.id + '">Draft</button></div>';
+    }).join("")
+    : '<p class="muted" style="margin:0; font-size:13px">Everyone you queued is gone.</p>') +
+    (lost.length ? '<p class="faint" style="font-size:11.5px; margin:8px 0 0">Taken: ' +
+      lost.slice(0,8).map(function(p){ return esc(p.name); }).join(", ") +
+      (lost.length>8 ? " +" + (lost.length-8) : "") + "</p>" : "");
+}
+
 /* ---------- Depth Charts ---------- */
 function renderDepth(){
   const q = ($("#dq").value||"").toLowerCase().trim();
@@ -3757,6 +3891,10 @@ $("#boardBody").addEventListener("click",e=>{
   if(a){ const id=+a.dataset.avoid; state.avoid.has(id)?state.avoid.delete(id):state.avoid.add(id); save(); renderBoard(); }
 });
 
+document.getElementById("queueOut").addEventListener("click",function(e){
+  const b=e.target.closest("[data-draft]"); if(!b) return;
+  makePick(+b.dataset.draft); runSim(); save(); renderAll();
+});
 $("#recs").addEventListener("click",e=>{
   const b=e.target.closest("[data-draft]"); if(!b) return;
   makePick(+b.dataset.draft);
@@ -3784,7 +3922,7 @@ $("#liveAdp").addEventListener("change",function(e){
   state.useLiveAdp=e.target.checked;
   if(state.useLiveAdp && !LIVEDATA){ refreshLive(false); return; }
   applyLeague(state.league); reseed(); runSim(); save();
-  renderCliffs(); renderSOS(); renderAll(); dataStamp();
+  renderCliffs(); renderSOS(); renderDraftDiary(); renderAll(); dataStamp();
 });
 
 /* Import a draft in progress. Sleeper exposes its picks as public JSON, so the
@@ -3895,12 +4033,23 @@ $("#syncWipe").addEventListener("click",function(){
 });
 $("#league").addEventListener("change",function(e){
   applyLeague(e.target.value); reseed(); runSim(); save();
-  renderCliffs(); renderSOS(); renderAll();
+  renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
 });
 
 const slotSel=$("#slot");
+/* Stash whatever is on the board before leaving, so switching leagues mid-draft
+   does not destroy it. Player ids are the raw line index within a league's own
+   board, so they stay valid for that league and are re-validated on the way back. */
+function stashLeague(){
+  if(!state.league) return;
+  state.byLeague[state.league] = {
+    picks: state.picks.slice(), seed: state.seed, slot: state.slot
+  };
+}
+
 function applyLeague(key){
   const L = LEAGUES[key];
+  if(state.league && state.league !== key) stashLeague();
   state.league = key;
   state.teams  = L.teams;
   state.rounds = L.rounds;
@@ -3922,6 +4071,7 @@ function applyLeague(key){
   const wIn = $("#draftWhenIn");
   if(wIn) wIn.value = draftWhenFor(key);
   renderCountdown(key);
+  renderDraftDiary();
   refreshBookmarklet(key);
   $("#syncHow").innerHTML = (key==="sleeper12")
     ? 'Sleeper publishes this draft\'s picks as open JSON. Open ' +
@@ -3934,7 +4084,18 @@ function applyLeague(key){
     ", " + L.source + "). Sleepers / breakouts / busts: ESPN 2026 panel. Bye weeks: 2026 NFL schedule. " +
     "Tiers, positional ranks, depth-chart ordering and all draft logic are computed from that ADP \u2014 no projections are used.";
   document.querySelectorAll(".planblock").forEach(function(b){ b.hidden = (b.dataset.league!==key); });
-  state.picks = [];
+
+  const saved = state.byLeague[key];
+  if(saved && Array.isArray(saved.picks)){
+    state.picks = saved.picks.filter(function(pk){ return byId.has(pk.playerId); });
+    if(saved.seed) state.seed = saved.seed;
+    if(saved.slot && saved.slot <= L.teams){
+      state.slot = saved.slot;
+      slotSel.value = state.slot;
+    }
+  } else {
+    state.picks = [];
+  }
 }
 slotSel.addEventListener("change",e=>{ state.slot=+e.target.value; state.picks=[]; reseed(); runSim(); save(); renderAll(); });
 $("#rounds").addEventListener("change",e=>{ state.rounds=+e.target.value; save(); renderAll(); });
@@ -3950,7 +4111,54 @@ $("#undo").addEventListener("click",()=>{
   save(); renderAll();
 });
 // a fresh seed means a genuinely different room, not the same board again
-$("#reset").addEventListener("click",()=>{ state.picks=[]; reseed(); runSim(); save(); renderAll(); });
+$("#reset").addEventListener("click",()=>{
+  state.picks=[]; delete state.byLeague[state.league];
+  reseed(); runSim(); save(); renderAll();
+});
+
+/* ---------- keyboard ----------
+   Typed drafts are a race. Slash focuses the search, Enter takes the top match,
+   digits take that recommendation, u undoes. Nothing fires while you are typing
+   into another field. */
+document.addEventListener("keydown", function(e){
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  const el = document.activeElement;
+  const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+  const search = $("#dsearch");
+
+  if(e.key === "/" && !typing){
+    e.preventDefault();
+    document.querySelector('[data-p="draft"]').click();
+    if(search){ search.focus(); search.select(); }
+    return;
+  }
+  if(typing && el === search){
+    if(e.key === "Enter"){
+      const hits = searchAvailable(search.value, 1);
+      if(hits.length){
+        e.preventDefault();
+        makePick(hits[0].id);
+        search.value = "";
+        runSim(); save(); renderAll();
+        search.focus();
+      }
+    } else if(e.key === "Escape"){
+      search.value = ""; renderDraft();
+    }
+    return;
+  }
+  if(typing) return;
+
+  if(state.tab === "draft"){
+    if(e.key >= "1" && e.key <= "6"){
+      const btns = document.querySelectorAll("#recs [data-draft]");
+      const idx = parseInt(e.key, 10) - 1;
+      if(btns[idx]){ e.preventDefault(); btns[idx].click(); }
+    } else if(e.key === "u"){
+      e.preventDefault(); $("#undo").click();
+    }
+  }
+});
 
 /* ---------- boot ---------- */
 load();
@@ -3963,6 +4171,7 @@ const hashRes = importFromHash();
 if(!hashRes && !state.picks.length) runSim();
 renderCliffs();
 renderSOS();
+renderDraftDiary();
 $("#p-board").hidden=false;
 [...$("#sortby").children].forEach(function(x){
   x.setAttribute("aria-pressed", x.dataset.s===state.sortBy);
@@ -3976,7 +4185,7 @@ if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
 window.addEventListener("hashchange", function(){
   const res = importFromHash();
   if(!res) return;
-  renderCliffs(); renderSOS(); renderAll(); showHashResult(res);
+  renderCliffs(); renderSOS(); renderDraftDiary(); renderAll(); showHashResult(res);
 });
 </script>
 

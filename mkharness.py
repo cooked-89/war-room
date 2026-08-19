@@ -37,6 +37,9 @@ harness = r'''
     }
   }
 
+  /* Switch league for a test that does not need a drafted roster. */
+  function ensureLeagueOnly(league){ state.picks=[]; state.byLeague={}; applyLeague(league); }
+
   function boardCount(pos){
     return PLAYERS.filter(function(p){ return p.pos===pos; }).length;
   }
@@ -679,6 +682,150 @@ harness = r'''
     var html=document.getElementById("tradeOut").innerHTML;
     if(html.indexOf("You send")<0) throw new Error("trade panel not rendered");
     if(html.indexOf("You receive")<0) throw new Error("receive side missing");
+  });
+
+  step("each-league-keeps-its-own-draft",function(){
+    /* Sleeper and ESPN draft the same evening, ESPN by hand. Switching between them
+       must not destroy either board. */
+    /* Clear the live board FIRST: applyLeague stashes whatever is currently on it,
+       so wiping byLeague alone just lets the outgoing draft repopulate it. */
+    state.picks = []; state.byLeague = {};
+    ensureDraft("sleeper12", 5);
+    var sleeperPicks = state.picks.length;
+    var sleeperFirst = byId.get(state.picks[0].playerId).name;
+    if(!sleeperPicks) throw new Error("no sleeper draft to preserve");
+
+    applyLeague("espn10");
+    if(state.picks.length !== 0) throw new Error("espn should start empty, got "+state.picks.length);
+    state.sim = false;
+    var espnTarget = PLAYERS[3];
+    makePick(espnTarget.id);
+    var espnPicks = state.picks.length;
+
+    applyLeague("sleeper12");
+    if(state.picks.length !== sleeperPicks)
+      throw new Error("sleeper draft lost: "+state.picks.length+" of "+sleeperPicks);
+    if(byId.get(state.picks[0].playerId).name !== sleeperFirst)
+      throw new Error("sleeper board came back wrong");
+
+    applyLeague("espn10");
+    if(state.picks.length !== espnPicks) throw new Error("espn draft lost");
+    if(byId.get(state.picks[0].playerId).name !== espnTarget.name)
+      throw new Error("espn board came back wrong");
+    log.push("   (sleeper "+sleeperPicks+" + espn "+espnPicks+" picks both survive switching)");
+  });
+
+  step("stale-ids-are-dropped-on-restore",function(){
+    state.picks = []; state.byLeague = {};
+    ensureDraft("espn10", 1);
+    stashLeague();                    // make sure there is something to corrupt
+    state.byLeague["espn10"].picks.push({playerId: 999999, team:0, overall:9999});
+    applyLeague("sleeper12");
+    applyLeague("espn10");
+    if(state.picks.some(function(pk){ return !byId.has(pk.playerId); }))
+      throw new Error("an invalid player id survived the restore");
+  });
+
+  step("draft-calendar-flags-the-overlap",function(){
+    setDraftWhen("sleeper12","2026-08-28T18:30");
+    setDraftWhen("espn10","2026-08-28T19:30");
+    setDraftWhen("mfl12","2026-08-29T12:30");
+    var d=draftClashes();
+    if(d.all.length<3) throw new Error("only "+d.all.length+" dates read back");
+    if(!d.clash.length) throw new Error("the two 28 Aug drafts should clash");
+    renderDraftDiary();
+    var html=document.getElementById("diaryOut").innerHTML;
+    if(html.indexOf("Overlapping drafts")<0) throw new Error("no clash warning rendered");
+    if(html.indexOf("manual entry")<0) throw new Error("offline league not marked manual");
+    log.push("   (calendar: "+d.all.length+" drafts, "+d.clash.length+" overlap)");
+  });
+
+
+  step("fuzzy-search-finds-players-fast",function(){
+    ensureLeagueOnly("espn10");
+    var cases = [
+      ["gibbs","Jahmyr Gibbs"], ["nacua","Puka Nacua"], ["jsn","Jaxon Smith-Njigba"],
+      ["bijan","Bijan Robinson"], ["mccaff","Christian McCaffrey"],
+      ["harrison","Marvin Harrison Jr."], ["cook","James Cook III"]
+    ];
+    cases.forEach(function(c){
+      var hit = searchAvailable(c[0], 1)[0];
+      if(!hit) throw new Error("no match for '"+c[0]+"'");
+      if(hit.name !== c[1]) throw new Error("'"+c[0]+"' -> "+hit.name+", expected "+c[1]);
+    });
+    if(searchAvailable("", 5).length !== 0) throw new Error("empty query should match nothing");
+    if(searchAvailable("zzzzzz", 5).length !== 0) throw new Error("nonsense matched something");
+    log.push("   (fuzzy search: "+cases.length+" shorthand queries all resolve)");
+  });
+
+  step("search-skips-drafted-players",function(){
+    ensureLeagueOnly("espn10");
+    state.sim=false; state.picks=[];
+    var g = searchAvailable("gibbs",1)[0];
+    makePick(g.id);
+    var again = searchAvailable("gibbs",1)[0];
+    if(again && again.id === g.id) throw new Error("a drafted player still appears in search");
+  });
+
+  step("queue-shows-only-available-stars",function(){
+    ensureLeagueOnly("espn10");
+    state.sim=false; state.picks=[]; state.star.clear();
+    var a=PLAYERS[0], b=PLAYERS[1], c=PLAYERS[2];
+    [a,b,c].forEach(function(p){ state.star.add(p.id); });
+    state.tab="draft"; document.getElementById("p-draft").hidden=false;
+    renderDraft();
+    var html=document.getElementById("queueOut").innerHTML;
+    if(html.indexOf(a.name)<0) throw new Error("queued player missing");
+    makePick(a.id);
+    renderDraft();
+    html=document.getElementById("queueOut").innerHTML;
+    var pos=html.indexOf("Taken:");
+    if(pos<0) throw new Error("drafted star not moved to Taken");
+    if(html.slice(0,pos).indexOf(a.name)>=0) throw new Error("drafted star still listed as available");
+    state.star.clear();
+  });
+
+  step("enter-key-drafts-top-match",function(){
+    ensureLeagueOnly("espn10");
+    state.sim=false; state.picks=[];
+    state.tab="draft"; document.getElementById("p-draft").hidden=false; renderDraft();
+    var box=document.getElementById("dsearch");
+    box.value="jeanty"; box.focus();
+    var before=state.picks.length;
+    document.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+    if(state.picks.length!==before+1) throw new Error("Enter did not draft");
+    var last=byId.get(state.picks[state.picks.length-1].playerId);
+    if(last.name.indexOf("Jeanty")<0) throw new Error("wrong player drafted: "+last.name);
+    if(box.value!=="") throw new Error("search box not cleared for the next pick");
+  });
+
+  step("digit-keys-draft-recommendations",function(){
+    ensureLeagueOnly("espn10");
+    state.sim=false; state.picks=[]; state.tab="draft";
+    document.getElementById("p-draft").hidden=false; renderDraft();
+    /* digits are for the recommendation list, but only when you are NOT typing a
+       name - so make sure the search box does not still hold focus */
+    var sb=document.getElementById("dsearch"); if(sb) sb.blur();
+    if(document.activeElement && document.activeElement.tagName==="INPUT")
+      document.activeElement.blur();
+    var btns=document.querySelectorAll("#recs [data-draft]");
+    if(!btns.length) throw new Error("no recommendations to key against");
+    var target=+btns[1].dataset.draft;
+    document.dispatchEvent(new KeyboardEvent("keydown",{key:"2",bubbles:true}));
+    var last=state.picks[state.picks.length-1];
+    if(!last || last.playerId!==target) throw new Error("key 2 drafted the wrong player");
+  });
+
+  step("shortcuts-inert-while-typing-elsewhere",function(){
+    ensureLeagueOnly("espn10");
+    state.sim=false; state.picks=[];
+    var box=document.getElementById("syncIn");
+    box.focus();
+    var before=state.picks.length;
+    document.dispatchEvent(new KeyboardEvent("keydown",{key:"1",bubbles:true}));
+    document.dispatchEvent(new KeyboardEvent("keydown",{key:"u",bubbles:true}));
+    if(state.picks.length!==before) throw new Error("shortcuts fired while typing in another field");
+    box.blur();
   });
 
   // ---- importer ----
