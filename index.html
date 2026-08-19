@@ -496,6 +496,10 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
                      border:1px solid var(--line-2); border-radius:6px;
                      background:var(--surface-2); color:var(--ink-2)">
             <button class="btn sm" id="fbgCopy" style="margin-top:7px">Copy Footballguys bookmarklet</button>
+            <div class="eyebrow" style="margin:10px 0 5px">Open Footballguys set to this league</div>
+            <div id="fbgLinks" style="display:flex; gap:6px; flex-wrap:wrap"></div>
+            <div class="eyebrow" style="margin:12px 0 5px">Scoring audit</div>
+            <div id="auditOut"></div>
           </div>
         </div>
       </details>
@@ -2102,6 +2106,33 @@ const SCHEDULE = (function(){
   return m;
 })();
 
+/* Footballguys accepts scoring and roster settings in the query string, verified by
+   loading one and reading back which radios the page adopted. Their Points column then
+   reflects THIS league. We still ingest only their raw stats - those are the same
+   whatever the scoring - but a configured page lets us audit our own maths against a
+   professional implementation of the same rules. */
+const FBG_SETTINGS = {
+  espn10:    {ppr:0, "pass-yds":25, "pass-td":4, "pass-int":-2, numTeams:10,
+              qb:1, rb:2, wr:2, te:1, "rb,wr,te":1, "qb,rb,wr,te":0},
+  cbs12:     {ppr:0, "pass-yds":25, "pass-td":6, "pass-int":-2, numTeams:12,
+              qb:1, rb:2, wr:2, te:1, "rb,wr,te":0, "qb,rb,wr,te":0},
+  mfl12:     {ppr:1, "pass-yds":25, "pass-td":6, "pass-int":-1, numTeams:12,
+              qb:1, rb:2, wr:2, te:0, "rb,wr,te":1, "qb,rb,wr,te":0},
+  sleeper12: {ppr:1, "pass-yds":25, "pass-td":4, "pass-int":-1, numTeams:12,
+              qb:1, rb:2, wr:3, te:1, "rb,wr,te":1, "qb,rb,wr,te":1}
+};
+
+function fbgUrl(key, pos){
+  const s = FBG_SETTINGS[key] || FBG_SETTINGS.espn10;
+  const q = ["pp1d=0", "rec-rec-te=0", "qb-team=0", "nflTeam=all",
+             "durationTypeKey=preseason", "posGroupKey=all", "week=0",
+             "pos=" + pos];
+  Object.keys(s).forEach(function(k){
+    q.push(encodeURIComponent(k) + "=" + encodeURIComponent(s[k]));
+  });
+  return "https://www.footballguys.com/projections?" + q.join("&");
+}
+
 const SCORING = {
   espn10:   {passYdPer:25, passTd:4, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-2},
   cbs12:    {passYdPer:25, passTd:6, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-1,
@@ -2811,9 +2842,10 @@ function refreshFbgBookmarklet(){
     "for(var k=3;k<hs.length;k++){" +
     "var grp=g[k]||'',h=hs[k];" +
     "var v=parseFloat((c[k]||{innerText:''}).innerText.replace(/,/g,''))||0;" +
-    "if(grp==='PASSING'){if(h==='YDS')o.py=v;else if(h==='TD')o.pt=v;else if(h==='INT')o.i=-v;}" +
+    "if(grp==='PASSING'){if(h==='YDS')o.py=v;else if(h==='TD')o.pt=v;else if(h==='INT')o.i=v;}" +
     "else if(grp==='RUSHING'){if(h==='YDS')o.ry=v;else if(h==='TD')o.rt=v;}" +
-    "else if(grp==='RECEIVING'){if(h==='YDS')o.cy=v;else if(h==='TD')o.ct=v;else if(h==='REC')o.rc=v;}}" +
+    "else if(grp==='RECEIVING'){if(h==='YDS')o.cy=v;else if(h==='TD')o.ct=v;else if(h==='REC')o.rc=v;}" +
+    "else if(h==='POINTS')o.tp=v;}" +
     "rows.push(o);});" +
     "if(!rows.length){alert('No rows found - pick a position first.');return;}" +
     "window.open('" + location.origin + location.pathname +
@@ -4250,6 +4282,68 @@ function renderQueue(){
       (lost.length>8 ? " +" + (lost.length-8) : "") + "</p>" : "");
 }
 
+/* ---------- scoring audit ----------
+   Their configured Points column and our scoring engine are two implementations of the
+   same league rules. Running THEIR stat line through OUR maths and comparing to THEIR
+   total isolates scoring from projection: if the two disagree, the bug is in the rules,
+   not the forecast. Anything under about 2% is rounding, two-point conversions and
+   fumble handling. */
+function scoringAudit(){
+  const fbg = EXTRA_PROJ.fbg;
+  if(!fbg || !fbg.count) return null;
+  /* Their settings cannot express a per-game bonus ladder, so compare base scoring
+     only. Including our measured CBS bonus here would guarantee a mismatch and hide
+     any real rule error underneath it. */
+  const base = Object.assign({}, SCORING[state.league]);
+  delete base.gameBonus;
+  const S = base;
+  const rows = [];
+  fbg.rows.forEach(function(r){
+    if(r.tp === undefined || r.tp === null || !(r.tp > 0)) return;
+    if(r.p === "PK" || r.p === "DEF") return;
+    const ours = scoreRow({passYd:r.py||0, passTd:r.pt||0, int:r.i||0,
+                           rushYd:r.ry||0, rushTd:r.rt||0, rec:r.rc||0,
+                           recYd:r.cy||0, recTd:r.ct||0, fum:r.f||0,
+                           gp:17, sleeperPts:0}, S, r.p);
+    rows.push({n:r.n, p:r.p, ours:Math.round(ours*10)/10, theirs:r.tp,
+               diff:Math.round((ours - r.tp)*10)/10,
+               pct: r.tp ? Math.abs(ours - r.tp)/r.tp*100 : 0});
+  });
+  if(!rows.length) return null;
+  rows.sort(function(a,b){ return b.pct - a.pct; });
+  const pcts = rows.map(function(x){ return x.pct; }).sort(function(a,b){ return a-b; });
+  return {n:rows.length,
+          medianPct: Math.round(pcts[Math.floor(pcts.length/2)] * 10) / 10,
+          worst: rows.slice(0, 5)};
+}
+
+function renderAudit(){
+  const el = $("#auditOut");
+  if(!el) return;
+  const a = scoringAudit();
+  if(!a){
+    el.innerHTML = '<p class="faint" style="margin:0; font-size:12.5px">' +
+      "Load Footballguys projections with this league's settings and this compares their " +
+      "scoring of the same players against ours. Per-game bonus ladders are excluded - " +
+      "their settings cannot express them.</p>";
+    return;
+  }
+  const good = a.medianPct <= 2;
+  el.innerHTML =
+    '<div style="display:flex; gap:16px; flex-wrap:wrap; align-items:baseline">' +
+      '<div><div class="eyebrow">players compared</div><div class="num" style="font-size:20px">' + a.n + "</div></div>" +
+      '<div><div class="eyebrow">median difference</div><div class="' + (good ? "good" : "bad") +
+        '" style="font-family:var(--display); font-size:22px">' + a.medianPct.toFixed(1) + "%</div></div>" +
+      '<div class="faint" style="flex:1; min-width:200px; font-size:12px">' +
+        (good ? "Our scoring matches a professional implementation of the same rules."
+              : "That is a wide gap - our rules for this league may be wrong.") + "</div>" +
+    "</div>" +
+    '<div class="faint" style="font-size:11.5px; margin-top:8px">Largest gaps: ' +
+      a.worst.map(function(w){
+        return esc(w.n) + " " + w.ours.toFixed(0) + " vs " + w.theirs.toFixed(0);
+      }).join(" · ") + "</div>";
+}
+
 /* ---------- saved drafts ----------
    A mock is only useful if you can compare it to the last one. Each save records the
    picks, the seat, the order in force, and the grade at the time, so a run of mocks
@@ -4849,6 +4943,12 @@ function applyLeague(key){
     : "during the draft";
   refreshFpBookmarklet();
   refreshFbgBookmarklet();
+  const fl = $("#fbgLinks");
+  if(fl) fl.innerHTML = ["qb","rb","wr","te"].map(function(pos){
+    return '<a class="btn sm" target="_blank" rel="noopener" href="' +
+           fbgUrl(key, pos) + '">' + pos.toUpperCase() + "</a>";
+  }).join("");
+  renderAudit();
   const dIn = $("#draftIdIn");
   if(dIn) dIn.value = draftIdFor(key);
   const wIn = $("#draftWhenIn");

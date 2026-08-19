@@ -1198,6 +1198,66 @@ harness = r'''
     if(fp.indexOf("src:'fp'")<0) throw new Error("fantasypros payload not tagged");
   });
 
+
+  step("fbg-urls-carry-each-league-scoring",function(){
+    var u=fbgUrl("cbs12","qb");
+    if(u.indexOf("pass-td=6")<0) throw new Error("CBS should request 6-point passing TDs");
+    if(u.indexOf("ppr=0")<0) throw new Error("CBS is not PPR");
+    if(u.indexOf("numTeams=12")<0) throw new Error("CBS team count wrong");
+    var e=fbgUrl("espn10","rb");
+    if(e.indexOf("pass-td=4")<0||e.indexOf("numTeams=10")<0) throw new Error("ESPN settings wrong");
+    if(e.indexOf("ppr=0")<0) throw new Error("ESPN is not PPR");
+    var s=fbgUrl("sleeper12","wr");
+    if(s.indexOf("ppr=1")<0) throw new Error("Sleeper is full PPR");
+    if(s.indexOf("wr=3")<0) throw new Error("Sleeper starts three receivers");
+    if(s.indexOf(encodeURIComponent("qb,rb,wr,te")+"=1")<0)
+      throw new Error("Sleeper superflex slot not requested");
+    var m=fbgUrl("mfl12","te");
+    if(m.indexOf("ppr=1")<0||m.indexOf("pass-td=6")<0) throw new Error("MFL settings wrong");
+    ["qb","rb","wr","te"].forEach(function(pos){
+      if(fbgUrl("espn10",pos).indexOf("pos="+pos)<0) throw new Error("position missing for "+pos);
+    });
+  });
+
+  step("scoring-audit-compares-like-for-like",function(){
+    ensureLeagueOnly("cbs12");
+    EXTRA_PROJ={};
+    if(scoringAudit()!==null) throw new Error("audit should be null with no fbg data");
+    /* Josh Allen exactly as Footballguys projects him, with their own CBS-configured
+       total. Our engine should land within a couple of percent. */
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify({src:"fbg", rows:[
+      {n:"Josh Allen",p:"QB",py:3770,pt:27.2,i:10.8,ry:553,rt:11.2,rc:0,cy:0,ct:0,f:0,tp:411.53}
+    ]})));
+    var a=scoringAudit();
+    if(!a) throw new Error("audit produced nothing");
+    if(a.n!==1) throw new Error("expected one comparable player");
+    if(a.medianPct>4)
+      throw new Error("our CBS scoring is "+a.medianPct+"% from theirs - check the rules");
+    /* interceptions are a positive count; the multiplier carries the penalty. If the
+       sign were doubled up this player would score ~43 points too high. */
+    var ip=scoreRow({passYd:0,passTd:0,int:10,rushYd:0,rushTd:0,rec:0,recYd:0,recTd:0,fum:0,gp:17,sleeperPts:0},
+                    SCORING.cbs12,"QB");
+    if(ip>0) throw new Error("ten interceptions should not be worth positive points");
+    renderAudit();
+    if(document.getElementById("auditOut").textContent.indexOf("median difference")<0)
+      throw new Error("audit panel did not render");
+    log.push("   (scoring audit vs Footballguys CBS: "+a.medianPct.toFixed(1)+"% apart)");
+    EXTRA_PROJ={}; applyLeague("espn10");
+  });
+
+  step("audit-catches-a-wrong-rule",function(){
+    ensureLeagueOnly("cbs12");
+    EXTRA_PROJ={};
+    // same player, but a total that implies 4-point passing TDs instead of 6
+    applyProjHash("#proj="+encodeURIComponent(JSON.stringify({src:"fbg", rows:[
+      {n:"Josh Allen",p:"QB",py:3770,pt:27.2,i:10.8,ry:553,rt:11.2,rc:0,cy:0,ct:0,f:0,tp:250}
+    ]})));
+    var a=scoringAudit();
+    if(!a || a.medianPct < 10)
+      throw new Error("a badly wrong total should show a large gap, got "+(a&&a.medianPct));
+    EXTRA_PROJ={}; applyLeague("espn10");
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;
