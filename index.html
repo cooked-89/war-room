@@ -341,7 +341,17 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
     </div>
     <label class="fld"><input type="checkbox" id="hideGone"> Hide drafted</label>
     <label class="fld"><input type="checkbox" id="onlyStar"> Watchlist only</label>
+    <div class="seg" id="sortby">
+      <button data-s="adp"  aria-pressed="true">ADP</button>
+      <button data-s="vorp" aria-pressed="false">Value</button>
+      <button data-s="proj" aria-pressed="false">Points</button>
+    </div>
     <span class="faint num" id="boardCount" style="margin-left:auto; font-size:12px"></span>
+  </div>
+  <div class="toolbar" style="margin-top:-6px">
+    <span id="dataMsg" style="font-size:12px"></span>
+    <button class="btn sm" id="dataRefresh">Refresh</button>
+    <label class="fld"><input type="checkbox" id="liveAdp"> Use Sleeper ADP</label>
   </div>
   <div class="card scroller">
     <table class="board">
@@ -2036,6 +2046,12 @@ function buildLeague(key){
     return {id:i, name:parts[0], pos:parts[1], team:parts[2],
             adp:parseFloat(parts[3]), bye:BYES[parts[2]]||null};
   }).filter(function(p){ return drop.indexOf(p.pos) === -1; });
+  if(state.useLiveAdp && LIVEDATA){
+    PLAYERS.forEach(function(p){
+      const a = liveAdpFor(liveLookup(p), key);
+      if(a && a > 0 && a < 400) p.adp = a;
+    });
+  }
   PLAYERS.sort(function(a,b){ return a.adp-b.adp; });
   PLAYERS.forEach(function(p,i){ p.ovr=i+1; });
 
@@ -2091,6 +2107,7 @@ const state = {
   filter:"ALL", query:"", hideGone:false, onlyStar:false,
   star:new Set(), avoid:new Set(),
   league:"espn10", teams:10, slot:1, rounds:15, sim:true,
+  sortBy:"adp", useLiveAdp:false,
   seed:String(Math.floor(Math.random()*1e9)),  // fixes the AI teams' temperaments
   picks:[]   // {playerId, team (0-indexed), overall}
 };
@@ -2099,7 +2116,7 @@ function reseed(){ state.seed = String(Math.floor(Math.random()*1e9)); }
 function save(){
   try{
     localStorage.setItem(LS, JSON.stringify({
-      league:state.league, slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
+      league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp, slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
       picks:state.picks, star:[...state.star], avoid:[...state.avoid]
     }));
   }catch(e){/* private mode — run without persistence */}
@@ -2109,6 +2126,8 @@ function load(){
     const raw = localStorage.getItem(LS); if(!raw) return;
     const d = JSON.parse(raw);
     if(d.league && LEAGUES[d.league]) state.league=d.league;
+    if(d.sortBy) state.sortBy=d.sortBy;
+    if(typeof d.useLiveAdp==="boolean") state.useLiveAdp=d.useLiveAdp;
     if(d.slot) state.slot=d.slot;
     // clamp: an older save may hold a round count no longer offered
     if(d.rounds) state.rounds=Math.max(13, Math.min(16, d.rounds));
@@ -2128,10 +2147,12 @@ function load(){
 function attachProjections(key){
   const S = SCORING[key];
   PLAYERS.forEach(function(p){
-    const r = (p.pos === "DEF")
+    const live = liveLookup(p);
+    const r = live || ((p.pos === "DEF")
       ? PROJ.byDefTeam.get(p.team)
-      : PROJ.byName.get(normName(p.name)+"|"+p.pos);
+      : PROJ.byName.get(normName(p.name)+"|"+p.pos));
     p.projRow = r || null;
+    p.inj = (live && live.inj) ? live.inj : "";
     if(!r){ p.proj = null; return; }
     if(p.pos === "PK" || p.pos === "DEF"){
       p.proj = r.sleeperPts;                 // pre-bucketed; use Sleeper's own total
@@ -2164,6 +2185,118 @@ function attachProjections(key){
     p.vorp = (p.proj===null || base===null || base===undefined)
       ? null : Math.round((p.proj - base) * 10) / 10;
   });
+}
+
+
+/* ---------- live data ----------
+   The built-in board is a snapshot; Sleeper's projections API is the live source and
+   is CORS-open, so the page refreshes itself. Everything here degrades quietly: a
+   failed or slow fetch leaves the snapshot in place, and the header always says which
+   one you are looking at. Fetched data is cached so a reload offline still gets the
+   most recent numbers rather than falling all the way back to the snapshot. */
+const LIVE_KEY = "warroom.live.v1";
+let LIVEDATA = null;          // {byName:Map, byDefTeam:Map, at:number}
+
+function liveRowsToMaps(rows, at){
+  const byName = new Map(), byDefTeam = new Map();
+  rows.forEach(function(r){
+    if(r.pos === "DEF") byDefTeam.set(r.team, r);
+    else byName.set(normName(r.name) + "|" + r.pos, r);
+  });
+  return {byName:byName, byDefTeam:byDefTeam, at:at, rows:rows};
+}
+
+function loadCachedLive(){
+  try{
+    const raw = localStorage.getItem(LIVE_KEY);
+    if(!raw) return null;
+    const d = JSON.parse(raw);
+    if(!d || !Array.isArray(d.rows) || !d.rows.length) return null;
+    return liveRowsToMaps(d.rows, d.at);
+  }catch(e){ return null; }
+}
+
+async function fetchLive(){
+  const L = LEAGUES[state.league];
+  const drop = L.drop || [];
+  const wanted = ["QB","RB","WR","TE"]
+    .concat(drop.indexOf("PK") >= 0 ? [] : ["K"])
+    .concat(drop.indexOf("DEF") >= 0 ? [] : ["DEF"]);
+  const rows = [];
+  for(const pos of wanted){
+    const url = "https://api.sleeper.com/projections/nfl/2026?season_type=regular&position[]="
+              + pos + "&order_by=pts_ppr";
+    const res = await fetch(url, {cache:"no-store"});
+    if(!res.ok) throw new Error(pos + " returned HTTP " + res.status);
+    const j = await res.json();
+    j.forEach(function(rec){
+      const p = rec.player || {}, s = rec.stats || {};
+      const nm = ((p.first_name||"") + " " + (p.last_name||"")).trim();
+      if(!nm) return;
+      const raw = p.position || pos;
+      const row = {
+        name:nm, pos:(raw === "K" ? "PK" : raw), team:(rec.team || p.team || ""),
+        gp:+(s.gp||0), passYd:+(s.pass_yd||0), passTd:+(s.pass_td||0), int:+(s.pass_int||0),
+        rushYd:+(s.rush_yd||0), rushTd:+(s.rush_td||0), rec:+(s.rec||0),
+        recYd:+(s.rec_yd||0), recTd:+(s.rec_td||0), fum:+(s.fum_lost||0),
+        sleeperPts:+(s.pts_std||0),
+        adpStd:(s.adp_std||null), adpPpr:(s.adp_ppr||null), adp2qb:(s.adp_2qb||null),
+        inj:(p.injury_status||"")
+      };
+      if(row.sleeperPts > 0 || row.pos === "DEF" || row.pos === "PK") rows.push(row);
+    });
+  }
+  if(!rows.length) throw new Error("no rows returned");
+  const at = Date.now();
+  try{ localStorage.setItem(LIVE_KEY, JSON.stringify({at:at, rows:rows})); }catch(e){}
+  return liveRowsToMaps(rows, at);
+}
+
+function liveLookup(p){
+  if(!LIVEDATA) return null;
+  return p.pos === "DEF" ? (LIVEDATA.byDefTeam.get(p.team) || null)
+                         : (LIVEDATA.byName.get(normName(p.name) + "|" + p.pos) || null);
+}
+
+/* Which of Sleeper ADP columns matches this league's scoring. */
+function liveAdpFor(row, key){
+  if(!row) return null;
+  if(key === "sleeper12") return row.adp2qb;
+  if(key === "mfl12")     return row.adpPpr;
+  return row.adpStd;
+}
+
+function dataStamp(){
+  const el = $("#dataMsg");
+  if(!el) return;
+  if(!LIVEDATA){
+    el.innerHTML = '<span class="faint">Built-in snapshot (Aug 16). '
+      + (window.LIVE_CAPABLE ? "Refreshing…" : "This build cannot fetch live data.") + "</span>";
+    return;
+  }
+  const mins = Math.round((Date.now() - LIVEDATA.at) / 60000);
+  const when = mins < 1 ? "just now" : (mins < 60 ? mins + " min ago"
+              : new Date(LIVEDATA.at).toLocaleString());
+  el.innerHTML = '<span class="good">Live projections</span> <span class="faint">from Sleeper, '
+    + when + " · " + LIVEDATA.rows.length + " players"
+    + (state.useLiveAdp ? " · using Sleeper ADP" : " · ADP from mock-draft consensus") + "</span>";
+}
+
+async function refreshLive(silent){
+  if(!window.LIVE_CAPABLE) return;
+  const btn = $("#dataRefresh");
+  if(btn){ btn.disabled = true; btn.textContent = "Refreshing…"; }
+  try{
+    LIVEDATA = await fetchLive();
+    applyLeague(state.league);
+    renderCliffs(); renderAll();
+  }catch(e){
+    const el = $("#dataMsg");
+    if(el && !silent) el.innerHTML = '<span class="warn">Could not reach Sleeper — '
+      + "keeping the numbers already loaded.</span>";
+  }
+  if(btn){ btn.disabled = false; btn.textContent = "Refresh"; }
+  dataStamp();
 }
 
 /* ---------- draft helpers ---------- */
@@ -2306,6 +2439,18 @@ const POS_VAR   = {DEF:"def", PK:"k", QB:"qb", RB:"rb", WR:"wr", TE:"te"};
 const posPill = p=>`<span class="pos ${p.pos}">${POS_LABEL[p.pos]}${
   (p.pos==="PK"||p.pos==="DEF") ? "" : p.posRank}</span>`;
 
+/* Sleeper reports injury status on the projection feed; surfacing it is free and
+   it is the single most common reason a board is wrong on draft day. */
+const INJ_LABEL = {Questionable:"Q", Doubtful:"D", Out:"OUT", IR:"IR", PUP:"PUP",
+                   Sus:"SUS", COV:"COV", DNR:"DNR", NA:"NA"};
+function injBadge(p){
+  if(!p.inj) return "";
+  const short = INJ_LABEL[p.inj] || String(p.inj).slice(0,3).toUpperCase();
+  const hard = /^(Out|IR|PUP|DNR|NA)$/i.test(p.inj);
+  return ' <span class="chip ' + (hard ? "bust" : "breakout") +
+         '" title="' + esc(p.inj) + '" style="padding:1px 5px; font-size:10px">' + short + "</span>";
+}
+
 function vorpCell(p){
   if(p.vorp===null) return '<span class="faint">—</span>';
   const cls = p.vorp>0 ? "good" : (p.vorp<0 ? "faint" : "muted");
@@ -2328,12 +2473,22 @@ function renderBoard(){
     if(q && !(p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q))) return false;
     return true;
   });
+  if(state.sortBy === "vorp" || state.sortBy === "proj"){
+    const k = state.sortBy;
+    rows.sort(function(a,b){
+      const av = a[k], bv = b[k];
+      if(av === null && bv === null) return a.adp - b.adp;
+      if(av === null) return 1;
+      if(bv === null) return -1;
+      return bv - av;
+    });
+  }
   $("#boardCount").textContent = `${rows.length} of ${PLAYERS.length}`;
   $("#boardBody").innerHTML = rows.map(p=>`
     <tr class="${gone.has(p.id)?"gone":""} ${p.tierTop&&state.filter!=="ALL"?"tier-top":""}" data-id="${p.id}">
       <td class="stripe ${p.pos}"></td>
       <td class="num muted">${p.adp.toFixed(1)}</td>
-      <td><span class="pname">${esc(p.name)}</span></td>
+      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}</td>
       <td>${posPill(p)}</td>
       <td class="faint">${p.team}</td>
       <td class="num faint">${p.bye??"—"}</td>
@@ -2371,6 +2526,9 @@ function recommend(){
     byPos[pos].slice(0,4).forEach((p,i)=>{
       const reach = Math.max(0, p.adp - (here+1));
       let score = need * Math.exp(-i/2.2) * Math.exp(-reach/22);
+      // a player worth 60 more points than replacement should outrank a peer worth 10
+      if(p.vorp !== null && p.vorp > 0) score *= (1 + Math.min(p.vorp, 120) / 160);
+      if(/^(Out|IR|PUP|DNR|NA|Doubtful)$/i.test(p.inj || "")) score *= 0.45;
       if(state.star.has(p.id)) score *= 1.35;
       if(state.avoid.has(p.id)) score *= 0.15;
       const left = avail.filter(x=>x.pos===p.pos && x.tier===p.tier).length;
@@ -2438,7 +2596,7 @@ function renderDraft(){
       <span class="rank num">${i}</span>
       ${posPill(p)}
       <div style="flex:1; min-width:0">
-        <div class="pname">${esc(p.name)} <span class="faint num" style="font-weight:400">${p.team}${p.bye?" · bye "+p.bye:""}</span></div>
+        <div class="pname">${esc(p.name)}${injBadge(p)} <span class="faint num" style="font-weight:400">${p.team}${p.bye?" · bye "+p.bye:""}</span></div>
         <div class="why">${extra}</div>
       </div>
       <button class="btn sm primary" data-draft="${p.id}">Draft</button>
@@ -2458,7 +2616,9 @@ function renderDraft(){
       const bits=[];
       if(r.value>6) bits.push(`<span class="good">falling — ADP ${p.adp.toFixed(1)}, you're at ${ov+1}</span>`);
       else if(r.value<-8) bits.push(`<span class="bad">reach — ADP ${p.adp.toFixed(1)}</span>`);
+      if(p.vorp !== null) bits.push(`<strong>${p.vorp>0?"+":""}${p.vorp.toFixed(0)}</strong> value`);
       bits.push(`${r.left} left in ${p.pos} tier ${p.tier}`);
+      if(p.inj) bits.push(`<span class="bad">${esc(p.inj)}</span>`);
       if(state.star.has(p.id)) bits.push(`<span class="starred">on your watchlist</span>`);
       if(p.tags.length) bits.push(p.tags.join(" / "));
       return rowFor(p, i+1, bits.join(" · "));
@@ -2719,6 +2879,19 @@ $("#recs").addEventListener("click",e=>{
   runSim(); save(); renderAll();
 });
 $("#dsearch").addEventListener("input",renderDraft);
+$("#sortby").addEventListener("click",function(e){
+  const b=e.target.closest("button"); if(!b) return;
+  state.sortBy=b.dataset.s;
+  [...e.currentTarget.children].forEach(function(x){ x.setAttribute("aria-pressed", x===b); });
+  save(); renderBoard();
+});
+$("#dataRefresh").addEventListener("click",function(){ refreshLive(false); });
+$("#liveAdp").addEventListener("change",function(e){
+  state.useLiveAdp=e.target.checked;
+  if(state.useLiveAdp && !LIVEDATA){ refreshLive(false); return; }
+  applyLeague(state.league); reseed(); runSim(); save();
+  renderCliffs(); renderAll(); dataStamp();
+});
 
 /* Import a draft in progress. Sleeper exposes its picks as public JSON, so the
    whole board can be reproduced from one paste; every other host gets the
@@ -2867,6 +3040,7 @@ $("#reset").addEventListener("click",()=>{ state.picks=[]; reseed(); runSim(); s
 
 /* ---------- boot ---------- */
 load();
+LIVEDATA = loadCachedLive();      // instant, offline-safe; network refresh follows
 const savedPicks = state.picks;
 applyLeague(state.league);
 state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });
@@ -2875,8 +3049,14 @@ const hashRes = importFromHash();
 if(!hashRes && !state.picks.length) runSim();
 renderCliffs();
 $("#p-board").hidden=false;
+[...$("#sortby").children].forEach(function(x){
+  x.setAttribute("aria-pressed", x.dataset.s===state.sortBy);
+});
+$("#liveAdp").checked = state.useLiveAdp;
 renderAll();
+dataStamp();
 showHashResult(hashRes);
+if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
 
 window.addEventListener("hashchange", function(){
   const res = importFromHash();
