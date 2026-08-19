@@ -329,6 +329,8 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
 
 <main class="wrap">
 
+<div class="alert" id="setupMsg" hidden style="margin-bottom:14px"></div>
+
 <!-- ================= BOARD ================= -->
 <section class="panel" id="p-board">
   <div class="toolbar">
@@ -4001,6 +4003,50 @@ function importFromHash(){
   return res;
 }
 
+/* Configure a device from a link rather than making someone retype a 19-digit
+   draft id on a phone. Only known league keys are accepted, only two fields per
+   league, and both are length-capped — a URL is untrusted input even when you
+   wrote it yourself. */
+function applySetupHash(rawHash){
+  /* Takes the hash as an argument so it can be exercised without driving real
+     navigation, which fires listeners and makes tests hang. */
+  const src = (rawHash === undefined ? (location.hash || "") : String(rawHash));
+  const m = src.match(/^#setup=([\s\S]+)$/);
+  if(!m) return null;
+  let payload;
+  try{ payload = JSON.parse(decodeURIComponent(m[1])); }
+  catch(e){ return {error:"That setup link is malformed."}; }
+  if(!payload || typeof payload !== "object" || Array.isArray(payload))
+    return {error:"That setup link is malformed."};
+
+  const applied = [];
+  Object.keys(payload).forEach(function(key){
+    if(!LEAGUES[key]) return;                       // ignore anything we do not know
+    const v = payload[key];
+    if(!v || typeof v !== "object") return;
+    const id   = typeof v.id === "string"   ? v.id.trim().slice(0, 40)   : "";
+    const when = typeof v.when === "string" ? v.when.trim().slice(0, 20) : "";
+    if(id && !/^[0-9]+$/.test(id)) return;          // draft ids are numeric
+    if(when && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return;
+    if(id)   setDraftId(key, id);
+    if(when) setDraftWhen(key, when);
+    if(id || when) applied.push(LEAGUES[key].label);
+  });
+  return applied.length ? {applied:applied} : {error:"That setup link had nothing usable in it."};
+}
+
+function showSetupResult(res){
+  if(!res) return;
+  const bar = $("#setupMsg");
+  if(!bar) return;
+  bar.hidden = false;
+  bar.className = "alert" + (res.error ? " hot" : "");
+  bar.innerHTML = res.error
+    ? '<span class="bad">' + esc(res.error) + "</span>"
+    : "<div><b>This device is set up.</b> Saved draft details for " +
+      esc(res.applied.join(", ")) + ". Nothing left to type." + "</div>";
+}
+
 function showHashResult(res){
   if(!res) return;
   const card = $("#syncCard"); if(card) card.open = true;
@@ -4167,6 +4213,10 @@ const savedPicks = state.picks;
 applyLeague(state.league);
 state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });
 $("#simOn").checked = state.sim;
+const setupRes = applySetupHash();
+if(setupRes && !setupRes.error){
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
+}
 const hashRes = importFromHash();
 if(!hashRes && !state.picks.length) runSim();
 renderCliffs();
@@ -4180,9 +4230,17 @@ $("#liveAdp").checked = state.useLiveAdp;
 renderAll();
 dataStamp();
 showHashResult(hashRes);
+showSetupResult(setupRes);
 if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
 
 window.addEventListener("hashchange", function(){
+  const s = applySetupHash();
+  if(s){
+    applyLeague(state.league); showSetupResult(s);
+    if(!s.error){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
+    renderAll();
+    return;
+  }
   const res = importFromHash();
   if(!res) return;
   renderCliffs(); renderSOS(); renderDraftDiary(); renderAll(); showHashResult(res);

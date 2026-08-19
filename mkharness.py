@@ -828,6 +828,52 @@ harness = r'''
     box.blur();
   });
 
+
+  step("setup-link-configures-the-device",function(){
+    setDraftId("sleeper12",""); setDraftWhen("sleeper12","");
+    setDraftWhen("espn10","");
+    var fakeId="1111111111111111111";   // never the real id: the privacy scan reads this file too
+    var payload={sleeper12:{id:fakeId,when:"2026-08-28T18:30"},
+                 espn10:{when:"2026-08-28T19:30"}};
+    var res=applySetupHash("#setup="+encodeURIComponent(JSON.stringify(payload)));
+    if(!res || res.error) throw new Error("setup rejected: "+(res&&res.error));
+    if(draftIdFor("sleeper12")!==fakeId) throw new Error("id not saved");
+    if(draftWhenFor("sleeper12")!=="2026-08-28T18:30") throw new Error("sleeper date not saved");
+    if(draftWhenFor("espn10")!=="2026-08-28T19:30") throw new Error("espn date not saved");
+    if(res.applied.length!==2) throw new Error("expected 2 leagues, got "+res.applied.length);
+  });
+
+  step("setup-link-does-not-disturb-draft-import",function(){
+    if(applySetupHash("")!==null) throw new Error("empty hash should return null");
+    ensureLeagueOnly("espn10");
+    var names=available().slice(0,2).map(function(p){return p.name;});
+    var draftHash="#draft=espn10:"+encodeURIComponent(names.join("|"));
+    if(applySetupHash(draftHash)!==null) throw new Error("setup handler grabbed a draft hash");
+    location.hash=draftHash;
+    var r=importFromHash();
+    location.hash="";
+    if(!r || r.count!==2) throw new Error("draft import broken by setup handler");
+  });
+
+  /* Note: the payload below splits "</scr"+"ipt>" - a literal closing tag inside an
+     injected <script> block ends the block early and kills the whole harness. */
+  step("setup-link-rejects-junk",function(){
+    var before=draftIdFor("sleeper12");
+    var bad=[
+      "#setup=not-json",
+      "#setup="+encodeURIComponent(JSON.stringify({sleeper12:{id:"<scr"+"ipt>alert(1)</scr"+"ipt>"}})),
+      "#setup="+encodeURIComponent(JSON.stringify({sleeper12:{when:"tomorrow"}})),
+      "#setup="+encodeURIComponent(JSON.stringify({notALeague:{id:"123"}})),
+      "#setup="+encodeURIComponent(JSON.stringify(["array","not","object"]))
+    ];
+    bad.forEach(function(h){
+      var r=applySetupHash(h);
+      if(r && !r.error && r.applied && r.applied.length)
+        throw new Error("accepted bad payload: "+h.slice(0,45));
+    });
+    if(draftIdFor("sleeper12")!==before) throw new Error("junk payload mutated saved settings");
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;
@@ -910,5 +956,5 @@ harness = r'''
 </script>
 '''
 
-open("test-harness.html","w",encoding="utf-8").write(guard + src + harness)
+open("test-harness.html","w",encoding="utf-8").write(guard + src + harness + '\n<script>\n/* Independent of the suite: if the harness itself dies, say why. */\nsetTimeout(function(){\n  if(document.getElementById("TESTLOG")) return;\n  var pre=document.createElement("pre"); pre.id="CRASHLOG";\n  pre.textContent = "HARNESS DID NOT FINISH\nerrors: " +\n    ((window.__errs && window.__errs.length) ? window.__errs.join(" | ") : "(none recorded)");\n  document.body.appendChild(pre);\n}, 60000);\n</script>\n')
 print("harness written")
