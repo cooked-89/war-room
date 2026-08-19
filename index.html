@@ -1,0 +1,2956 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The War Room</title>
+<meta name="description" content="Fantasy football draft companion scored to your own league rules.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12150F" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="War Room">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<style>
+  html{background:#F7F6F3}
+  @media (prefers-color-scheme:dark){html{background:#12150F}}
+  /* keep content clear of the notch when installed */
+  body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+</style>
+</head>
+<body>
+<style>
+:root{
+  --bg:#F7F6F3; --surface:#FFFFFF; --surface-2:#EFEEE9; --surface-3:#E5E4DC;
+  --ink:#191C1A; --ink-2:#565C58; --ink-3:#878D88;
+  --line:#DEDDD6; --line-2:#C9C8BF;
+  --gold:#A9762A; --gold-soft:#F2E6CD; --gold-line:#D9BE84;
+  --good:#22683A; --bad:#A93221; --warn:#9A6B1F;
+  --qb:#B94E28; --rb:#2A7355; --wr:#37559F; --te:#7E4590; --k:#6C7178; --def:#456371;
+  --qb-bg:#F7E4DB; --rb-bg:#DCEDE5; --wr-bg:#DFE6F7; --te-bg:#EEE0F2; --k-bg:#E8EAEC; --def-bg:#DFE9ED;
+  --shadow:0 1px 2px rgba(25,28,26,.06),0 4px 14px rgba(25,28,26,.05);
+  --display:Georgia,"Iowan Old Style","Times New Roman",serif;
+  --ui:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121513; --surface:#191D1A; --surface-2:#212621; --surface-3:#2B312B;
+    --ink:#EDEEE9; --ink-2:#A5ABA5; --ink-3:#767C77;
+    --line:#2D332D; --line-2:#3C433C;
+    --gold:#D9A441; --gold-soft:#3A2E16; --gold-line:#6B5320;
+    --good:#63BE79; --bad:#E0705A; --warn:#D9A441;
+    --qb:#E07C50; --rb:#4EAC85; --wr:#7A9CEA; --te:#BA85C8; --k:#989EA4; --def:#7BA3B2;
+    --qb-bg:#33201A; --rb-bg:#17301F; --wr-bg:#1B2440; --te-bg:#2C1D33; --k-bg:#25282A; --def-bg:#1B2A31;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121513; --surface:#191D1A; --surface-2:#212621; --surface-3:#2B312B;
+  --ink:#EDEEE9; --ink-2:#A5ABA5; --ink-3:#767C77;
+  --line:#2D332D; --line-2:#3C433C;
+  --gold:#D9A441; --gold-soft:#3A2E16; --gold-line:#6B5320;
+  --good:#63BE79; --bad:#E0705A; --warn:#D9A441;
+  --qb:#E07C50; --rb:#4EAC85; --wr:#7A9CEA; --te:#BA85C8; --k:#989EA4; --def:#7BA3B2;
+  --qb-bg:#33201A; --rb-bg:#17301F; --wr-bg:#1B2440; --te-bg:#2C1D33; --k-bg:#25282A; --def-bg:#1B2A31;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--ui); font-size:15px; line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+h1,h2,h3{font-family:var(--display); font-weight:600; text-wrap:balance; margin:0}
+button{font-family:inherit; font-size:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--gold); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1240px; margin:0 auto; padding:0 18px}
+header.top{border-bottom:1px solid var(--line); background:var(--surface)}
+.masthead{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; padding:18px 0 14px}
+.masthead h1{font-size:27px; letter-spacing:-.015em}
+.masthead .sub{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); letter-spacing:.03em; text-transform:uppercase}
+.tabs{display:flex; gap:2px; overflow-x:auto; scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  background:none; border:0; border-bottom:2px solid transparent;
+  padding:9px 14px; white-space:nowrap; color:var(--ink-2);
+  font-size:14px; font-weight:500; transition:color .12s,border-color .12s;
+}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--gold); font-weight:600}
+main{padding:22px 0 70px}
+.panel[hidden]{display:none}
+
+/* ---------- generic bits ---------- */
+.pos{
+  display:inline-block; min-width:30px; text-align:center;
+  font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:.04em;
+  padding:2px 5px; border-radius:3px;
+}
+.pos.QB{color:var(--qb); background:var(--qb-bg)}
+.pos.RB{color:var(--rb); background:var(--rb-bg)}
+.pos.WR{color:var(--wr); background:var(--wr-bg)}
+.pos.TE{color:var(--te); background:var(--te-bg)}
+.pos.PK{color:var(--k);  background:var(--k-bg)}
+.pos.DEF{color:var(--def); background:var(--def-bg)}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.muted{color:var(--ink-2)}
+.faint{color:var(--ink-3)}
+.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow)}
+.card-h{padding:11px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px}
+.card-h h3{font-size:15px}
+.card-b{padding:14px}
+
+.eyebrow{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--ink-3); font-weight:600;
+}
+.chip{
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:11px; font-weight:600; padding:2px 7px; border-radius:99px;
+  border:1px solid var(--line-2); color:var(--ink-2); background:var(--surface-2);
+}
+.chip.sleeper{color:var(--good); border-color:currentColor; background:transparent}
+.chip.breakout{color:var(--gold); border-color:currentColor; background:transparent}
+.chip.bust{color:var(--bad); border-color:currentColor; background:transparent}
+
+.btn{
+  background:var(--surface); border:1px solid var(--line-2); border-radius:6px;
+  padding:6px 12px; font-size:13px; font-weight:500; transition:background .12s,border-color .12s;
+}
+.btn:hover{background:var(--surface-2); border-color:var(--ink-3)}
+.btn.primary{background:var(--gold); border-color:var(--gold); color:#fff; font-weight:600}
+:root[data-theme="dark"] .btn.primary,
+:root:not([data-theme="light"]) .btn.primary{color:#12150F}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .btn.primary{color:#fff}}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.4; cursor:not-allowed}
+.btn.sm{padding:3px 8px; font-size:12px}
+
+input[type="text"],select{
+  background:var(--surface); color:var(--ink);
+  border:1px solid var(--line-2); border-radius:6px; padding:6px 10px;
+  font-family:inherit; font-size:13.5px;
+}
+label.fld{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2)}
+
+.toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px}
+.seg{display:inline-flex; border:1px solid var(--line-2); border-radius:6px; overflow:hidden}
+.seg button{background:var(--surface); border:0; padding:5px 11px; font-size:12.5px; border-right:1px solid var(--line-2)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--bg); font-weight:600}
+
+.scroller{overflow-x:auto; -webkit-overflow-scrolling:touch}
+
+/* ---------- board table ---------- */
+table.board{width:100%; border-collapse:collapse; font-size:13.5px}
+table.board th{
+  position:sticky; top:0; z-index:2; background:var(--surface-2);
+  text-align:left; padding:8px 10px; border-bottom:1px solid var(--line-2);
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-2);
+  white-space:nowrap;
+}
+table.board td{padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:middle}
+table.board tbody tr:hover{background:var(--surface-2)}
+tr.gone td{opacity:.34}
+tr.gone .pname{text-decoration:line-through}
+tr.tier-top td{border-top:2px solid var(--line-2)}
+.pname{font-weight:600}
+.stripe{width:3px; padding:0 !important}
+.stripe.QB{background:var(--qb)} .stripe.RB{background:var(--rb)} .stripe.WR{background:var(--wr)}
+.stripe.TE{background:var(--te)} .stripe.PK{background:var(--k)} .stripe.DEF{background:var(--def)}
+.tiermark{font-family:var(--mono); font-size:11px; color:var(--ink-3)}
+.starred{color:var(--gold)}
+.iconbtn{background:none; border:0; padding:2px 4px; font-size:13px; line-height:1; color:var(--ink-3)}
+.iconbtn:hover{color:var(--ink)}
+.iconbtn.on{color:var(--gold)}
+.iconbtn.avoid.on{color:var(--bad)}
+
+/* ---------- draft ---------- */
+.draft-grid{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:18px; align-items:start}
+@media (max-width:900px){.draft-grid{grid-template-columns:minmax(0,1fr)}}
+.onclock{
+  border:1px solid var(--gold-line); background:var(--gold-soft);
+  border-radius:8px; padding:12px 14px; margin-bottom:14px;
+}
+.onclock.idle{border-color:var(--line); background:var(--surface-2)}
+.onclock .big{font-family:var(--display); font-size:20px; font-weight:600}
+.rec{display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--line)}
+.rec:last-child{border-bottom:0}
+.rec .why{font-size:11.5px; color:var(--ink-2); line-height:1.35}
+.rec .rank{font-family:var(--mono); font-size:11px; color:var(--ink-3); width:16px; flex:none}
+.picklist{max-height:330px; overflow-y:auto}
+.pk{display:flex; gap:9px; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--line); font-size:13px}
+.pk:last-child{border-bottom:0}
+.pk .slot{font-family:var(--mono); font-size:11px; color:var(--ink-3); width:44px; flex:none}
+.pk.mine{background:var(--gold-soft); margin:0 -8px; padding:5px 8px; border-radius:4px}
+.alert{
+  display:flex; gap:8px; padding:8px 10px; border-radius:6px; font-size:12.5px;
+  border:1px solid var(--line-2); background:var(--surface-2); margin-bottom:8px; line-height:1.4;
+}
+.alert.hot{border-color:var(--warn); color:var(--ink)}
+.alert b{font-weight:650}
+
+.dboard{border-collapse:collapse; font-size:11px; width:max-content}
+.dboard th{background:var(--surface-2); padding:4px 6px; font-family:var(--mono); font-size:10px;
+  color:var(--ink-2); border:1px solid var(--line); position:sticky; top:0; white-space:nowrap}
+.dboard td{border:1px solid var(--line); padding:3px 5px; min-width:98px; max-width:98px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:var(--surface)}
+.dboard td.mine{background:var(--gold-soft)}
+.dboard td.mine:not(:empty){outline:1px solid var(--gold-line); outline-offset:-1px}
+.dboard td .mini{font-family:var(--mono); font-size:9px; color:var(--ink-3)}
+
+/* ---------- roster ---------- */
+.roster{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px}
+.slotrow{display:flex; align-items:center; gap:9px; padding:8px 11px; border:1px solid var(--line);
+  border-radius:6px; background:var(--surface)}
+.slotrow.empty{border-style:dashed; color:var(--ink-3)}
+.slotrow .lbl{font-family:var(--mono); font-size:10.5px; color:var(--ink-3); width:38px; flex:none; letter-spacing:.05em}
+
+/* ---------- depth ---------- */
+.teams{display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:12px}
+.tcard{border:1px solid var(--line); border-radius:8px; background:var(--surface); padding:12px 13px}
+.tcard h4{margin:0 0 8px; font-family:var(--display); font-size:16px; display:flex; justify-content:space-between; align-items:baseline}
+.tcard h4 .bye{font-family:var(--mono); font-size:10.5px; color:var(--ink-3); font-weight:400}
+.dgrp{margin-bottom:7px}
+.dgrp:last-child{margin-bottom:0}
+.dgrp .glbl{font-family:var(--mono); font-size:10px; color:var(--ink-3); letter-spacing:.06em}
+.dline{display:flex; justify-content:space-between; gap:8px; font-size:12.5px; padding:1.5px 0}
+.dline .ord{font-family:var(--mono); font-size:10px; color:var(--ink-3); width:22px; flex:none}
+.dline.one{font-weight:600}
+
+/* ---------- prose (plan tab) ---------- */
+.prose{max-width:68ch}
+.prose h2{font-size:21px; margin:26px 0 8px; letter-spacing:-.01em}
+.prose h2:first-child{margin-top:0}
+.prose h3{font-size:15.5px; margin:18px 0 5px}
+.prose p{margin:0 0 11px; color:var(--ink-2)}
+.prose ul{margin:0 0 12px; padding-left:19px; color:var(--ink-2)}
+.prose li{margin-bottom:5px}
+.prose strong{color:var(--ink); font-weight:650}
+.pull{
+  border-left:3px solid var(--gold); background:var(--surface-2);
+  padding:11px 14px; margin:14px 0; border-radius:0 6px 6px 0;
+}
+.pull p:last-child{margin-bottom:0}
+.cliff{display:flex; gap:10px; align-items:baseline; padding:6px 0; border-bottom:1px dashed var(--line)}
+.cliff:last-child{border-bottom:0}
+.cliff .at{font-family:var(--mono); font-size:11.5px; color:var(--gold); width:62px; flex:none; font-weight:600}
+
+.foot{border-top:1px solid var(--line); margin-top:34px; padding:16px 0 0; font-size:12px; color:var(--ink-3)}
+.foot a{color:var(--ink-2)}
+
+/* ---------- phone ----------
+   Drafting happens on a phone, so below 700px the board sheds the columns you
+   can infer or don't need mid-draft (bye, intel badges) and every control grows
+   to a real tap target. Nothing is removed from the DOM — only hidden — so the
+   same markup serves both. */
+@media (max-width:700px){
+  body{font-size:16px}
+  .wrap{padding:0 12px}
+
+  .masthead{padding:13px 0 10px; gap:6px}
+  .masthead h1{font-size:22px; width:100%}
+  .masthead .sub{font-size:10px; width:100%; line-height:1.35}
+  .masthead label.fld{margin-left:0 !important; width:100%; gap:8px}
+  .masthead label.fld select{flex:1; min-width:0; padding:9px 10px}
+
+  .tab{padding:11px 13px; font-size:15px}
+
+  .toolbar{gap:7px}
+  .toolbar input[type="text"]{flex:1 1 100%; min-width:0; padding:9px 11px}
+  .btn{padding:9px 14px}
+  .btn.sm{padding:6px 10px}
+  .seg button{padding:9px 13px}
+  label.fld{font-size:13.5px}
+  input[type="checkbox"]{width:18px; height:18px}
+
+  /* drop the columns that don't earn their width on a 390px screen */
+  table.board th:nth-child(6), table.board td:nth-child(6),
+  table.board th:nth-child(7), table.board td:nth-child(7),
+  table.board th:nth-child(10), table.board td:nth-child(10){display:none}
+  table.board th, table.board td{padding:9px 7px}
+  table.board{font-size:14px}
+  .pname{display:inline-block}
+
+  .iconbtn{padding:7px 6px; font-size:16px}
+
+  .onclock{padding:11px 12px}
+  .onclock .big{font-size:18px}
+
+  .rec{flex-wrap:wrap; padding:11px 0}
+  .rec .why{width:100%; order:3; padding-left:25px}
+  .rec .btn{margin-left:auto}
+
+  .roster{grid-template-columns:1fr}
+  .teams{grid-template-columns:1fr}
+  .prose h2{font-size:19px}
+  #recsTitle{font-size:14px}
+  .card-h{flex-wrap:wrap; padding:11px 12px}
+  .card-h input[type="text"]{max-width:none !important; width:100%}
+  .card-b{padding:12px}
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="masthead">
+      <h1>The War Room</h1>
+      <span class="sub" id="stamp"></span>
+      <label class="fld" style="margin-left:auto">League
+        <select id="league">
+          <option value="espn10">ESPN — My 2026 League (10-tm standard)</option>
+          <option value="cbs12">CBS — Chewey's (12-tm standard)</option>
+          <option value="mfl12">MFL — SWFFL (12-tm PPR)</option>
+          <option value="sleeper12">Sleeper — PL/Siena JV (12-tm superflex)</option>
+        </select>
+      </label>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  data-p="board">Big Board</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="draft">Draft</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="team">My Team</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="depth">Depth Charts</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="intel">Intel</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="plan">Plan</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ================= BOARD ================= -->
+<section class="panel" id="p-board">
+  <div class="toolbar">
+    <input type="text" id="q" placeholder="Search player or team…" style="min-width:190px">
+    <div class="seg" id="posfilter">
+      <button data-f="ALL" aria-pressed="true">All</button>
+      <button data-f="QB" aria-pressed="false">QB</button>
+      <button data-f="RB" aria-pressed="false">RB</button>
+      <button data-f="WR" aria-pressed="false">WR</button>
+      <button data-f="TE" aria-pressed="false">TE</button>
+      <button data-f="FLEX" aria-pressed="false">Flex</button>
+    </div>
+    <label class="fld"><input type="checkbox" id="hideGone"> Hide drafted</label>
+    <label class="fld"><input type="checkbox" id="onlyStar"> Watchlist only</label>
+    <span class="faint num" id="boardCount" style="margin-left:auto; font-size:12px"></span>
+  </div>
+  <div class="card scroller">
+    <table class="board">
+      <thead><tr>
+        <th class="stripe"></th>
+        <th>ADP</th><th>Player</th><th>Pos</th><th>Tm</th><th>Bye</th><th>Tier</th><th title="Projected season points in THIS league's scoring">Proj</th><th title="Points above a freely available replacement at the same position">VOR</th><th>Intel</th><th></th>
+      </tr></thead>
+      <tbody id="boardBody"></tbody>
+    </table>
+  </div>
+  <p class="faint" style="font-size:12px; margin-top:10px">
+    Tiers are computed from gaps in ADP within each position — a new tier starts where the board
+    itself breaks. ☆ adds to your watchlist, ⊘ marks do-not-draft; both feed the Draft tab's
+    recommendations and persist between sessions.
+  </p>
+</section>
+
+<!-- ================= DRAFT ================= -->
+<section class="panel" id="p-draft" hidden>
+  <div class="toolbar">
+    <label class="fld">Your slot
+      <select id="slot"></select>
+    </label>
+    <label class="fld">Rounds
+      <select id="rounds">
+        <option>13</option><option>14</option><option selected>15</option><option>16</option>
+      </select>
+    </label>
+    <label class="fld"><input type="checkbox" id="simOn" checked> Auto-draft the other <span id="simCount">9</span></label>
+    <button class="btn" id="undo">Undo</button>
+    <button class="btn" id="reset">Reset draft</button>
+  </div>
+
+  <div class="draft-grid">
+    <div>
+      <div class="onclock" id="onclock"></div>
+      <div id="alerts"></div>
+
+      <details class="card" id="syncCard" style="margin-bottom:16px">
+        <summary class="card-h" style="cursor:pointer; list-style:none">
+          <h3>Sync from your live draft</h3>
+          <span class="eyebrow">import picks</span>
+        </summary>
+        <div class="card-b">
+          <p class="faint" style="margin:0 0 9px; font-size:12.5px" id="syncHow"></p>
+          <textarea id="syncIn" rows="4" placeholder="Paste draft JSON, or one player name per line…"
+            style="width:100%; font-family:var(--mono); font-size:11.5px; padding:8px;
+                   border:1px solid var(--line-2); border-radius:6px;
+                   background:var(--surface-2); color:var(--ink); resize:vertical"></textarea>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:9px; flex-wrap:wrap">
+            <button class="btn primary" id="syncGo">Import picks</button>
+            <button class="btn" id="syncWipe">Clear box</button>
+            <span id="syncMsg" style="font-size:12.5px"></span>
+          </div>
+          <div id="liveWrap" hidden style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+            <label class="fld" style="font-size:13.5px; color:var(--ink)">
+              <input type="checkbox" id="liveOn"> <strong>Live sync</strong> — read this draft from Sleeper every 15s
+            </label>
+            <div id="liveMsg" style="font-size:12.5px; margin-top:6px" class="faint">Off.</div>
+          </div>
+          <div id="bmWrap" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
+            <div class="eyebrow" style="margin-bottom:5px">One-click sync</div>
+            <p class="faint" style="margin:0 0 7px; font-size:12.5px">
+              Make a new browser bookmark and paste this as its <em>address</em>. During the draft,
+              click it — the board fills in and re-clicking updates the same tab. Works from any page.
+            </p>
+            <input id="bmCode" readonly value="javascript:(async function(){try{var r=await fetch('https://api.sleeper.app/v1/draft/1389704038232121345/picks');var j=await r.json();j.sort(function(a,b){return a.pick_no-b.pick_no});var n=j.map(function(p){return (p.metadata.first_name+' '+p.metadata.last_name).trim()}).join('|');window.open('https://claude.ai/code/artifact/00fcfaf5-4135-4ae3-bcfa-68d26057a28c#draft=sleeper12:'+encodeURIComponent(n),'warroom');}catch(e){alert('War Room sync failed: '+e.message)}})()"
+              style="width:100%; font-family:var(--mono); font-size:10.5px; padding:6px;
+                     border:1px solid var(--line-2); border-radius:6px;
+                     background:var(--surface-2); color:var(--ink-2)">
+            <button class="btn sm" id="bmCopy" style="margin-top:7px">Copy bookmarklet</button>
+          </div>
+        </div>
+      </details>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h">
+          <h3 id="recsTitle">Best available</h3>
+          <input type="text" id="dsearch" placeholder="Find any player…" style="max-width:200px">
+        </div>
+        <div class="card-b" id="recs" style="padding-top:4px; padding-bottom:4px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>Draft board</h3><span class="eyebrow" id="boardMeta"></span></div>
+        <div class="scroller" style="max-height:420px"><table class="dboard" id="dboard"></table></div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><h3>Position runs</h3><span class="eyebrow">last 12 picks</span></div>
+        <div class="card-b" id="runs"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Recent picks</h3></div>
+        <div class="card-b picklist" id="picks"></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= MY TEAM ================= -->
+<section class="panel" id="p-team" hidden>
+  <div id="teamOut"></div>
+</section>
+
+<!-- ================= DEPTH ================= -->
+<section class="panel" id="p-depth" hidden>
+  <div class="toolbar">
+    <input type="text" id="dq" placeholder="Filter by team…" style="min-width:170px">
+    <span class="faint" style="font-size:12px">Ordered by ADP within each team — the market's read on the pecking order.</span>
+  </div>
+  <div class="teams" id="depthOut"></div>
+</section>
+
+<!-- ================= INTEL ================= -->
+<section class="panel" id="p-intel" hidden>
+  <div class="toolbar">
+    <div class="seg" id="tagfilter">
+      <button data-t="ALL" aria-pressed="true">All</button>
+      <button data-t="sleeper" aria-pressed="false">Sleepers</button>
+      <button data-t="breakout" aria-pressed="false">Breakouts</button>
+      <button data-t="bust" aria-pressed="false">Busts</button>
+    </div>
+  </div>
+  <div class="card scroller">
+    <table class="board">
+      <thead><tr><th class="stripe"></th><th>ADP</th><th>Player</th><th>Pos</th><th>Tm</th><th>Tag</th><th>Note</th></tr></thead>
+      <tbody id="intelBody"></tbody>
+    </table>
+  </div>
+  <p class="faint" style="font-size:12px; margin-top:10px">
+    Sleeper / breakout / bust designations and their reasoning come from ESPN's 2026 panel;
+    a player can carry two tags when the panel splits on him. Disagreement is signal — see Etienne.
+  </p>
+</section>
+
+<!-- ================= PLAN ================= -->
+<section class="panel" id="p-plan" hidden>
+  <div class="prose">
+
+  <!-- ============ STANDARD, 10-TEAM (the ESPN league) ============ -->
+  <div class="planblock" data-league="espn10">
+    <h2>What your league actually rewards</h2>
+    <p>
+      Three settings dominate everything else: there are <strong>no points for receptions</strong>,
+      you start <strong>only two receivers</strong>, and there are <strong>ten teams</strong>.
+      All three point the same direction, and most published rankings you'll see online are
+      built for 12-team PPR — which is a different game.
+    </p>
+
+    <div class="pull">
+      <p><strong>Sixteen of the first thirty players off the board are running backs.</strong>
+      In a ten-team league that's your first three rounds. You start two backs plus a flex that
+      will almost always be a third back, you start only two receivers, and a catch is worth
+      nothing by itself. Draft accordingly.</p>
+    </div>
+
+    <h3>1. Tight end got cheap — this is your biggest edge</h3>
+    <p>
+      In PPR, Trey McBride and Brock Bowers go at picks 33 and 39. In your format they go at
+      <strong>52.7 and 52.2</strong> — the fifth-sixth turn of a ten-team draft. Same players,
+      twenty picks later, purely because receptions are worth zero.
+    </p>
+    <p>
+      One caveat worth knowing: ESPN's panel tagged McBride, LaPorta, Kraft, Pitts and Fannin as
+      bust candidates, so the position carries real risk. But the risk is priced very differently
+      here. At 33 you're paying a premium for it; at 52 you aren't. Bowers or McBride at the
+      5/6 turn is the best structural value on your board.
+    </p>
+
+    <h3>2. Quarterback is still free, and 4-point passing TDs make it freer</h3>
+    <p>
+      Josh Allen goes at 20.6 — early third round in a ten-teamer. After him: Maye 48, Lamar 51,
+      Burrow 54, Prescott 63, Daniels 70, Hurts 73, Stafford 74, Purdy 82, Lawrence 91,
+      Mahomes 98, Caleb Williams 98, Herbert 105, Goff 108. That's
+      <strong>thirteen starters between picks 48 and 108</strong>.
+    </p>
+    <p>
+      Your scoring gives 4 points per passing touchdown and 1 point per 25 yards with no bonuses,
+      which compresses the position further — the elite quarterbacks can't separate the way they
+      do in 6-point-passing-TD leagues. Let it come to you around rounds 7–9.
+    </p>
+
+    <h3>3. Running back, then running back again</h3>
+    <p>
+      The usable starting tier ends around <strong>pick 57</strong>. Through Bucky Irving (47),
+      Judkins (49), Tuten (51), TreVeyon Henderson (57) and David Montgomery (57) you're getting
+      real workloads. Immediately after that it's Pollard, Stevenson, Jaylen Warren, Dowdle,
+      Hubbard — committee backs to a man. In a format where your flex is a third running back,
+      leaving pick 57 with two is how seasons go wrong.
+    </p>
+
+    <h3>4. Receivers wait — and standard scoring changes which ones you want</h3>
+    <p>
+      Two starters means you need far fewer, and no-PPR reshuffles who's even good. The possession
+      slot receiver loses most of his value; the deep threat gains. Wan'Dale Robinson goes 79.5 in
+      PPR and <strong>103</strong> here. Alec Pierce goes 58 in PPR and <strong>46</strong> here,
+      on the back of finishing second in the NFL at 21.3 yards per reception.
+      <strong>Draft the touchdown and the big play, not the target hog.</strong>
+    </p>
+
+    <h2>Your settings, and what to do about them</h2>
+    <ul>
+      <li><strong>Two IR slots — use them.</strong> An injured high-upside player drafted in the
+      last round costs you nothing, because he moves to IR and frees the bench spot. This is free
+      option value most of your league will ignore.</li>
+      <li><strong>Only 4 of 10 teams make the playoffs.</strong> A 40% field is harsh, and seeding
+      breaks on total points. Draft for ceiling; a safe roster that finishes fifth wins nothing.</li>
+      <li><strong>30 acquisitions all season, and waivers never reset.</strong> Claiming moves you
+      to last permanently, so your early-season priority is a one-shot asset. Don't spend it in
+      week 2 on a backup you're hoping about.</li>
+      <li><strong>Roster maximums:</strong> 8 RB, 8 WR, 4 QB, 3 TE, 3 K, 3 D/ST. Only the tight
+      end cap is likely to matter.</li>
+      <li><strong>The draft is offline</strong>, so nothing syncs anywhere. Turn off auto-draft on
+      the Draft tab and use it as a live tracker — the search box records any player to whoever is
+      on the clock.</li>
+      <li><strong>Kickers: 0–39 and 40–49 yard field goals both score 3.</strong> No distance
+      bonus in that range, so volume on a good offense beats a big leg. Last round regardless.</li>
+      <li><strong>Return yards score 0.02 per yard</strong> — fifty return yards is one point.
+      A tiebreaker between two players you already like, nothing more.</li>
+      <li><strong>No keepers</strong> in 2026 or 2027, so there is zero reason to value youth.
+      Draft the best 2026 season available, full stop.</li>
+    </ul>
+
+    <h2>The plan, by draft slot</h2>
+    <p>Ten teams means your turns come back fast — twenty picks between them at the extremes.</p>
+
+    <h3>Picks 1–3</h3>
+    <p>
+      Gibbs, Bijan or Nacua. Take the back if either is there. Your turn comes back around 18–23,
+      where Rashee Rice, A.J. Brown, Nico Collins and Josh Jacobs are live — so you can open
+      RB then take a receiver and a second back at the turn without straining.
+    </p>
+
+    <h3>Picks 4–7 — the best seats in this format</h3>
+    <p>
+      Jonathan Taylor, Chase, Smith-Njigba, McCaffrey and Derrick Henry are all live here, and
+      Henry at 7.5 is the clearest example of what non-PPR does to a board. Your 2/3 turn lands
+      near 14–17: Barkley, Jeanty, Pickens, Jefferson. <strong>Open with two backs from this
+      slot.</strong> The receivers you'd have taken instead will still be there in round 4.
+    </p>
+
+    <h3>Picks 8–10 — the double-back start</h3>
+    <p>
+      You pick back-to-back at roughly 8–13, which is exactly where Henry, Cook, Achane, London
+      and Lamb sit. Two backs there, then two receivers at the 3/4 turn, and you are ahead of
+      the pick-57 cliff with a receiving corps you only need two of. This is the cleanest path
+      in your league.
+    </p>
+  </div>
+
+  <!-- ============ 12-TEAM FULL PPR (the other league) ============ -->
+  <div class="planblock" data-league="cbs12" hidden>
+    <h2>Chewey's: the quarterback league</h2>
+    <p>
+      Standard scoring, 12 teams, 16 rounds, $1,250 buy-in. Two settings make this
+      unlike anything else you're playing, and both are easy to miss.
+    </p>
+
+    <div class="pull">
+      <p><strong>Passing touchdowns are worth 6, not 4 — and the yardage bonuses are enormous.</strong>
+      A 300-yard, 3-touchdown game pays 30 points on yardage-and-scores alone before the
+      bonus ladder, which adds another 5 at 300+, 6 at 350+, 7 at 400+. The generic non-PPR
+      ADP on this board prices quarterbacks for 4-point leagues. <strong>It is wrong here,
+      and it's wrong in your favour if you act first.</strong></p>
+    </div>
+
+    <h3>1. Quarterbacks are badly underpriced on this board</h3>
+    <p>
+      The board shows Allen at 21, Maye 48, Lamar 51, Burrow 54 — those are 4-point-passing-TD
+      prices. With 6-point passing TDs plus escalating yardage bonuses, the spread between
+      QB1 and QB12 in your scoring is far wider than the ADP gap suggests. Take a top
+      quarterback earlier than the board says, and take your second before the run starts —
+      remember you are <em>required</em> to roster two.
+    </p>
+
+    <h3>2. You must roster two of every position</h3>
+    <p>
+      The commissioner's rule is 2 QB, 2 RB, 2 WR, 2 TE, 2 K, 2 D/ST — twelve mandatory
+      players, plus four of any combination, for a sixteen-man roster in a sixteen-round draft.
+      That means <strong>four of your sixteen picks are kickers and defenses</strong>, and two
+      more are tight ends you may not want. Only four picks are genuinely free.
+    </p>
+    <p>
+      Practical consequence: your real skill-position draft is about ten picks long. Don't
+      arrive at round 14 still needing two kickers, two defenses and a second tight end —
+      that's four wasted picks under pressure. Plan the last four rounds before you start.
+      This tool's My Team tab tracks the full requirement, not just the starting nine.
+    </p>
+
+    <h3>3. Big-play backs and receivers, again</h3>
+    <p>
+      Receptions score zero, and there are distance bonuses: +3 for a 40–49 yard touchdown,
+      +6 for 50 or more, plus 3 points at 100 rushing or receiving yards. This rewards the
+      explosive player over the volume possession guy even more strongly than your ESPN league.
+    </p>
+
+    <h3>Also worth knowing</h3>
+    <ul>
+      <li><strong>Top 8 of 12 make the playoffs</strong>, weeks 15–17, and seeds 4–8 are set by
+      total points regardless of division. Points matter even when you're winning.</li>
+      <li><strong>No IR stashing.</strong> The rules explicitly forbid drafting an injured
+      player to IR — the opposite of your ESPN league. Draft healthy.</li>
+      <li><strong>$10 per add/drop, $20 per trade player.</strong> Churn is expensive; draft
+      depth you actually intend to keep.</li>
+      <li><strong>Draft is 9/5/26 at 6:15pm ET</strong>, snake, no pick clock.</li>
+    </ul>
+  </div>
+
+  <div class="planblock" data-league="mfl12" hidden>
+    <h2>SWFFL: the shallow-roster PPR league</h2>
+    <p>
+      12 teams, full PPR, and a <strong>twelve-man roster</strong> — eight starters and only
+      four bench spots. That last number drives everything.
+    </p>
+
+    <div class="pull">
+      <p><strong>With four bench slots you cannot hoard upside.</strong> Handcuffs, lottery
+      tickets and injured stashes all cost you a quarter of your bench. Draft players who
+      start for you, and let the waiver wire be your bench.</p>
+    </div>
+
+    <h3>1. Tight end is optional — treat it that way</h3>
+    <p>
+      Your starting requirement is 1 QB, 2–3 RB, 2–3 WR+TE, 1 K, 1 D/ST. Tight end shares a
+      slot with receivers rather than having its own. In full PPR, a mid-tier tight end rarely
+      beats a third receiver in that slot, so unless Bowers or McBride falls to you, skip the
+      position and start three receivers. This tool's lineup for this league has no dedicated
+      TE slot for exactly that reason.
+    </p>
+
+    <h3>2. Distance-scaled touchdowns nudge you toward explosiveness</h3>
+    <p>
+      Touchdowns pay 6 to 9 points by length rather than a flat 6, and interceptions and fumbles
+      each cost only 1. That's a mild tilt toward big-play players and away from punishing
+      turnover-prone quarterbacks. Mild — don't overhaul a board for it, but break ties with it.
+    </p>
+
+    <h3>3. Full PPR restores the receivers your other leagues bury</h3>
+    <p>
+      This is the one league where the possession receiver is genuinely valuable again. Wan'Dale
+      Robinson, Ladd McConkey, Josh Downs and Michael Pittman are worth what the PPR board says,
+      not what your standard leagues say. Keep the two boards separate in your head.
+    </p>
+
+    <h3>4. Twelve rounds only</h3>
+    <p>
+      144 total picks. The draft ends while good players are still on the board, which means
+      the last two rounds are a kicker and a defense and you should feel no regret about it.
+    </p>
+  </div>
+
+  <div class="planblock" data-league="sleeper12" hidden>
+    <h2>PL/Siena JV: superflex changes the whole game</h2>
+    <p>
+      12 teams, full PPR, 14 rounds, and a <strong>superflex</strong> slot — you may start a
+      second quarterback in it, and you almost always should. There are no kickers and no
+      defenses in this league at all.
+    </p>
+
+    <div class="pull">
+      <p><strong>Josh Allen goes 1.5 overall here.</strong> Nine of the first twenty-five picks
+      are quarterbacks. Twelve teams wanting two starting quarterbacks means twenty-four
+      quarterbacks are starters, and there are nowhere near twenty-four good ones. That
+      scarcity is the entire format.</p>
+    </div>
+
+    <h3>1. Two quarterbacks, early, non-negotiable</h3>
+    <p>
+      The board tells the story: Allen 1.5, Maye 6.0, Lamar 6.8, Burrow 7.6, Prescott 11.8,
+      Daniels 12.7, Hurts 16.1, Purdy 17.3, Stafford 17.4, Lawrence 17.4, Mahomes 20.2,
+      Caleb 22.7, Herbert 24.1, Goff 24.2, Dart 26.7, Nix 30.9. That's sixteen inside 31 picks.
+      After Mayfield at 38 the position thins fast, and the teams that waited spend the rest of
+      the draft starting a running back in their superflex and losing four points a week for it.
+    </p>
+    <p>
+      Target two of the top sixteen. Taking quarterbacks with two of your first four picks is
+      not a reach in this format — it's the market price.
+    </p>
+
+    <h3>2. What that costs you, and where you make it back</h3>
+    <p>
+      Spending early on quarterbacks means missing the elite running backs. That's fine: with
+      three receiver slots plus a flex in full PPR, receiver depth is where you rebuild. Nacua
+      at 5.4 and Chase at 8.9 are the two skill players genuinely worth an early pick here;
+      after that, take quarterbacks and let the running back room come from the 40–100 range.
+    </p>
+
+    <h3>3. Tight end is nearly free</h3>
+    <p>
+      Bowers falls to 62.4 and McBride to 66.4 — later than in any of your other leagues,
+      because every early pick is being spent on quarterbacks. One starting slot, no premium,
+      and the two best options available in round six. Take one and stop thinking about it.
+    </p>
+
+    <h3>4. No kickers, no defenses</h3>
+    <p>
+      Fourteen rounds of nothing but real players, and this tool removes kickers and defenses
+      from the board entirely for this league. Your last few picks are bench receivers and
+      backfield speculation — spend them on players with a path to starting, not on handcuffs.
+    </p>
+
+    <h3>Syncing this draft</h3>
+    <p>
+      Sleeper is the one host of your four that publishes draft picks openly. Use the
+      <strong>Sync</strong> panel on the Draft tab — paste the JSON from
+      <code>api.sleeper.app/v1/draft/1389704038232121345/picks</code> and the entire board
+      rebuilds instantly. Re-paste whenever you want to catch up.
+    </p>
+  </div>
+
+    <h2>Positional cliffs to memorize</h2>
+    <div id="cliffOut"></div>
+
+    <h2>Rules for draft day</h2>
+    <ul>
+      <li><strong>Never reach past a tier break.</strong> If four players share a tier, the fourth
+      is nearly as good as the first and he'll survive to your next pick. Take the scarce position
+      now and come back for him.</li>
+      <li><strong>Kicker and defense in the last two rounds. No exceptions.</strong> Streaming a
+      defense off waivers beats any defense you draft early.</li>
+      <li><strong>Runs are real, panic is not.</strong> The Draft tab flags a run when one position
+      takes four of the last twelve picks. A run is usually a reason to take the <em>other</em>
+      position — unless it's emptying a tier you needed, which is what the cliff alert is for.</li>
+      <li><strong>Check byes only at the end.</strong> Two starters sharing a bye is a one-week
+      problem. Passing on a better player in round 5 to avoid it is a season-long one.</li>
+    </ul>
+
+    <h2>What this tool does not do</h2>
+    <p>
+      There are no projected point totals here, and so no value-over-replacement column. I don't
+      have a projection set I trust for your scoring, and inventing one would make the board look
+      more precise than it is. Tier scarcity does that job instead — a weaker signal, honestly
+      labelled.
+    </p>
+    <p>
+      ADP also moves daily in August. This is a snapshot from mocks run August 9–16. Re-pull it the
+      morning of the draft rather than trusting numbers more than a couple of days old.
+    </p>
+  </div>
+</section>
+
+<div class="wrap foot">
+  <p id="foot-src"></p>
+</div>
+</main>
+
+<script>
+"use strict";
+
+/* ============================================================
+   DATA — PPR ADP, 12-team, from 6,565 mock drafts Aug 9–16 2026
+   (Fantasy Football Calculator). name|pos|team|adp
+   ============================================================ */
+const ADP_PPR = `
+Bijan Robinson|RB|ATL|1.7
+Jahmyr Gibbs|RB|DET|1.8
+Puka Nacua|WR|LAR|3.1
+Ja'Marr Chase|WR|CIN|3.9
+Jaxon Smith-Njigba|WR|SEA|5.4
+Christian McCaffrey|RB|SF|6.3
+Amon-Ra St. Brown|WR|DET|6.7
+Jonathan Taylor|RB|IND|7.4
+Drake London|WR|ATL|10.2
+De'Von Achane|RB|MIA|10.3
+CeeDee Lamb|WR|DAL|10.9
+James Cook III|RB|BUF|13.3
+Chase Brown|RB|CIN|13.3
+Justin Jefferson|WR|MIN|13.5
+Rashee Rice|WR|KC|13.9
+Ashton Jeanty|RB|LV|14.6
+Derrick Henry|RB|BAL|16.9
+A.J. Brown|WR|NE|17.2
+Saquon Barkley|RB|PHI|20.1
+George Pickens|WR|DAL|20.2
+Omarion Hampton|RB|LAC|20.3
+Chris Olave|WR|NO|21.8
+Nico Collins|WR|HOU|22.6
+Kenneth Walker|RB|KC|24.8
+Zay Flowers|WR|BAL|25.2
+Garrett Wilson|WR|NYJ|28.1
+Breece Hall|RB|NYJ|28.3
+DeVonta Smith|WR|PHI|28.6
+Josh Jacobs|RB|GB|28.8
+Jeremiyah Love|RB|ARI|29.0
+Malik Nabers|WR|NYG|29.0
+Josh Allen|QB|BUF|29.2
+Trey McBride|TE|ARI|32.7
+Kyren Williams|RB|LAR|32.8
+Cam Skattebo|RB|NYG|33.4
+Tetairoa McMillan|WR|CAR|33.7
+Tee Higgins|WR|CIN|36.7
+Emeka Egbuka|WR|TB|37.1
+Javonte Williams|RB|DAL|37.2
+Brock Bowers|TE|LV|38.8
+Davante Adams|WR|LAR|41.0
+Ladd McConkey|WR|LAC|41.2
+Travis Etienne Jr.|RB|NO|41.2
+Jameson Williams|WR|DET|44.4
+Bucky Irving|RB|TB|45.0
+Terry McLaurin|WR|WAS|45.1
+D'Andre Swift|RB|CHI|45.7
+Jaylen Waddle|WR|DEN|46.2
+Rome Odunze|WR|CHI|49.1
+Drake Maye|QB|NE|50.0
+Quinshon Judkins|RB|CLE|51.2
+DJ Moore|WR|BUF|51.4
+Bhayshul Tuten|RB|JAX|54.2
+Lamar Jackson|QB|BAL|55.1
+Mike Evans|WR|SF|55.8
+Joe Burrow|QB|CIN|56.1
+Luther Burden III|WR|CHI|57.1
+Alec Pierce|WR|IND|58.0
+Colston Loveland|TE|CHI|58.3
+TreVeyon Henderson|RB|NE|58.7
+Courtland Sutton|WR|DEN|60.5
+David Montgomery|RB|HOU|62.7
+Marvin Harrison Jr.|WR|ARI|64.6
+Tyler Warren|TE|IND|64.9
+DK Metcalf|WR|PIT|65.0
+Christian Watson|WR|GB|65.6
+Dak Prescott|QB|DAL|65.8
+Jaylen Warren|RB|PIT|66.1
+Tony Pollard|RB|TEN|67.1
+Parker Washington|WR|JAX|67.7
+Jayden Daniels|QB|WAS|71.5
+Rhamondre Stevenson|RB|NE|71.7
+Rico Dowdle|RB|PIT|72.3
+Michael Pittman Jr.|WR|PIT|73.2
+Chuba Hubbard|RB|CAR|74.6
+Carnell Tate|WR|TEN|75.1
+Brian Thomas Jr.|WR|JAX|75.1
+Kyle Pitts Sr.|TE|ATL|77.7
+Jalen Hurts|QB|PHI|78.0
+Jadarian Price|RB|SEA|78.0
+Wan'Dale Robinson|WR|TEN|79.5
+Harold Fannin Jr.|TE|CLE|79.5
+Matthew Stafford|QB|LAR|82.2
+Jakobi Meyers|WR|JAX|82.3
+Michael Wilson|WR|ARI|82.7
+RJ Harvey|RB|DEN|83.6
+Brock Purdy|QB|SF|85.5
+Chris Godwin Jr.|WR|TB|85.8
+Josh Downs|WR|IND|85.8
+Sam LaPorta|TE|DET|87.4
+Kenny Gainwell|RB|TB|88.6
+Denver Defense|DEF|DEN|90.6
+Trevor Lawrence|QB|JAX|91.3
+Jordyn Tyson|WR|NO|92.4
+Stefon Diggs|WR|WAS|93.3
+Quentin Johnston|WR|LAC|93.5
+Seattle Defense|DEF|SEA|94.5
+Jayden Reed|WR|GB|94.6
+J.K. Dobbins|RB|DEN|96.6
+Aaron Jones Sr.|RB|MIN|97.5
+Caleb Williams|QB|CHI|98.5
+Patrick Mahomes|QB|KC|99.1
+Khalil Shakir|WR|BUF|100.5
+Jordan Addison|WR|MIN|101.4
+Houston Defense|DEF|HOU|102.3
+Tucker Kraft|TE|GB|103.5
+Rachaad White|RB|WAS|104.3
+Justin Herbert|QB|LAC|104.9
+Deebo Samuel Sr.|WR|SF|106.0
+Xavier Worthy|WR|KC|106.5
+Jared Goff|QB|DET|107.1
+Jaxson Dart|QB|NYG|107.9
+Travis Kelce|TE|KC|108.4
+Jonathon Brooks|RB|CAR|108.9
+Kyle Monangai|RB|CHI|109.5
+Makai Lemon|WR|PHI|110.4
+Ricky Pearsall|WR|SF|112.2
+Romeo Doubs|WR|NE|112.6
+Jacory Croskey-Merritt|RB|WAS|113.6
+George Kittle|TE|SF|113.9
+Dallas Goedert|TE|PHI|115.7
+Minnesota Defense|DEF|MIN|115.8
+Bo Nix|QB|DEN|118.9
+Matthew Golden|WR|GB|118.9
+John Metchie III|WR|CAR|122.0
+LA Rams Defense|DEF|LAR|122.5
+Blake Corum|RB|LAR|123.4
+Jordan Mason|RB|MIN|123.4
+Jalen Coker|WR|CAR|124.3
+Rashid Shaheed|WR|SEA|126.9
+KC Concepcion|WR|CLE|127.9
+New England Defense|DEF|NE|129.4
+Baker Mayfield|QB|TB|129.4
+Philadelphia Defense|DEF|PHI|129.9
+Brandon Aubrey|PK|DAL|130.4
+Jayden Higgins|WR|HOU|130.7
+Detroit Defense|DEF|DET|131.6
+Tyjae Spears|RB|TEN|132.2
+Tre Tucker|WR|LV|133.0
+Jerry Jeudy|WR|CLE|133.9
+Isaiah Likely|TE|NYG|134.4
+Jake Ferguson|TE|DAL|135.9
+Calvin Ridley|WR|TEN|135.9
+Tyler Shough|QB|NO|136.9
+Mark Andrews|TE|BAL|137.8
+Jason Myers|PK|SEA|139.2
+Theo Wease Jr.|WR|MIA|139.7
+Zach Charbonnet|RB|SEA|140.2
+Kyler Murray|QB|MIN|140.8
+Ka'imi Fairbairn|PK|HOU|141.6
+Alvin Kamara|RB|NO|142.2
+Sam Darnold|QB|SEA|143.6
+Pittsburgh Defense|DEF|PIT|143.8
+Cameron Dicker|PK|LAC|144.7
+Jordan Love|QB|GB|144.8
+Jauan Jennings|WR|MIN|144.8
+LA Chargers Defense|DEF|LAC|144.9
+Jalen McMillan|WR|TB|145.0
+Chimere Dike|WR|TEN|145.7
+San Francisco Defense|DEF|SF|145.7
+Pat Bryant|WR|DEN|147.1
+Mike Washington Jr.|RB|LV|147.8
+Rashod Bateman|WR|BAL|147.9
+Denzel Boston|WR|CLE|148.0
+Jonah Coleman|RB|DEN|148.2
+Jake Bates|PK|DET|149.6
+Oronde Gadsden|TE|LAC|149.8
+Woody Marks|RB|HOU|150.7
+Kaelon Black|RB|SF|150.8
+Tank Dell|WR|HOU|151.3
+Harrison Mevis|PK|LAR|151.7
+Daniel Jones|QB|IND|152.4
+Dalton Kincaid|TE|BUF|152.5
+De'Zhaun Stribling|WR|SF|152.5
+Isiah Pacheco|RB|DET|152.5
+Tyrone Tracy Jr.|RB|NYG|152.7
+Malik Washington|WR|MIA|154.1
+Jacksonville Defense|DEF|JAX|154.3
+Jalen Nailor|WR|LV|155.3
+Kimani Vidal|RB|LAC|155.5
+Dalton Schultz|TE|HOU|155.5
+Nick Folk|PK|ATL|155.6
+Braelon Allen|RB|NYJ|155.7
+NY Jets Defense|DEF|NYJ|155.9
+Chase McLaughlin|PK|TB|156.5
+Will Reichard|PK|MIN|156.5
+MarShawn Lloyd|RB|GB|156.6
+Cooper Kupp|WR|SEA|157.7
+Cam Little|PK|JAX|158.1
+Chris Boswell|PK|PIT|158.1
+Hunter Henry|TE|NE|158.5
+Juwan Johnson|TE|NO|158.8
+Cyrus Allen|WR|KC|158.8
+Tyler Loop|PK|BAL|158.9
+Eddy Pineiro|PK|SF|159.1
+Ray Davis|RB|BUF|160.0
+Cairo Santos|PK|CHI|160.3
+Keaton Mitchell|RB|LAC|160.3
+Buffalo Defense|DEF|BUF|160.3
+Green Bay Defense|DEF|GB|160.4
+`.trim();
+
+/* NON-PPR (standard) board. 1,420 mock drafts, Aug 9-16 2026.
+   Fantasy Football Calculator serves one table per scoring format --
+   the team-count in its URL is ignored -- so this is not size-specific. */
+const ADP_STD = `
+Jahmyr Gibbs|RB|DET|1.6
+Bijan Robinson|RB|ATL|2.2
+Puka Nacua|WR|LAR|3.6
+Jonathan Taylor|RB|IND|4.0
+Ja'Marr Chase|WR|CIN|4.8
+Jaxon Smith-Njigba|WR|SEA|6.2
+Christian McCaffrey|RB|SF|6.3
+Derrick Henry|RB|BAL|7.5
+Amon-Ra St. Brown|WR|DET|8.6
+James Cook III|RB|BUF|9.0
+De'Von Achane|RB|MIA|11.1
+Drake London|WR|ATL|11.9
+CeeDee Lamb|WR|DAL|13.7
+Saquon Barkley|RB|PHI|14.5
+Ashton Jeanty|RB|LV|16.5
+George Pickens|WR|DAL|16.8
+Justin Jefferson|WR|MIN|17.4
+Rashee Rice|WR|KC|18.5
+Chase Brown|RB|CIN|18.9
+A.J. Brown|WR|NE|19.4
+Josh Jacobs|RB|GB|20.2
+Josh Allen|QB|BUF|20.6
+Nico Collins|WR|HOU|21.5
+Omarion Hampton|RB|LAC|22.8
+Zay Flowers|WR|BAL|23.7
+Kyren Williams|RB|LAR|24.2
+Kenneth Walker|RB|KC|25.4
+Chris Olave|WR|NO|27.2
+Breece Hall|RB|NYJ|27.4
+Javonte Williams|RB|DAL|29.4
+Malik Nabers|WR|NYG|30.8
+Tee Higgins|WR|CIN|32.5
+Jeremiyah Love|RB|ARI|33.5
+Davante Adams|WR|LAR|34.0
+Cam Skattebo|RB|NYG|34.5
+Emeka Egbuka|WR|TB|35.7
+Tetairoa McMillan|WR|CAR|36.4
+Jameson Williams|WR|DET|37.6
+DeVonta Smith|WR|PHI|38.7
+Rome Odunze|WR|CHI|40.9
+Travis Etienne Jr.|RB|NO|41.4
+Garrett Wilson|WR|NYJ|41.6
+D'Andre Swift|RB|CHI|42.7
+Terry McLaurin|WR|WAS|44.4
+Alec Pierce|WR|IND|46.0
+Ladd McConkey|WR|LAC|46.2
+Bucky Irving|RB|TB|46.6
+Drake Maye|QB|NE|48.1
+Quinshon Judkins|RB|CLE|48.6
+DJ Moore|WR|BUF|50.7
+Lamar Jackson|QB|BAL|51.2
+Bhayshul Tuten|RB|JAX|51.2
+Brock Bowers|TE|LV|52.2
+Jaylen Waddle|WR|DEN|52.6
+Trey McBride|TE|ARI|52.7
+Mike Evans|WR|SF|53.8
+Joe Burrow|QB|CIN|54.3
+Christian Watson|WR|GB|54.6
+Courtland Sutton|WR|DEN|56.4
+TreVeyon Henderson|RB|NE|56.9
+David Montgomery|RB|HOU|57.3
+Luther Burden III|WR|CHI|58.4
+DK Metcalf|WR|PIT|59.8
+Marvin Harrison Jr.|WR|ARI|63.2
+Dak Prescott|QB|DAL|63.4
+Tony Pollard|RB|TEN|64.9
+Parker Washington|WR|JAX|64.9
+Brian Thomas Jr.|WR|JAX|67.3
+Rhamondre Stevenson|RB|NE|67.7
+Jadarian Price|RB|SEA|69.0
+Jayden Daniels|QB|WAS|69.7
+Colston Loveland|TE|CHI|70.3
+Jaylen Warren|RB|PIT|71.9
+Carnell Tate|WR|TEN|72.3
+Jalen Hurts|QB|PHI|72.8
+Rico Dowdle|RB|PIT|72.9
+Quentin Johnston|WR|LAC|74.2
+Matthew Stafford|QB|LAR|74.3
+Tyler Warren|TE|IND|77.5
+Chuba Hubbard|RB|CAR|78.2
+J.K. Dobbins|RB|DEN|78.7
+Michael Wilson|WR|ARI|80.7
+Jordan Addison|WR|MIN|80.9
+Brock Purdy|QB|SF|82.0
+Chris Godwin Jr.|WR|TB|83.9
+Jayden Reed|WR|GB|84.9
+Jakobi Meyers|WR|JAX|85.9
+Tucker Kraft|TE|GB|87.5
+Xavier Worthy|WR|KC|88.0
+Denver Defense|DEF|DEN|88.0
+Jordyn Tyson|WR|NO|88.6
+Trevor Lawrence|QB|JAX|90.9
+Seattle Defense|DEF|SEA|91.9
+Michael Pittman Jr.|WR|PIT|92.5
+RJ Harvey|RB|DEN|93.0
+Jacory Croskey-Merritt|RB|WAS|93.0
+Deebo Samuel Sr.|WR|SF|93.4
+Patrick Mahomes|QB|KC|97.6
+Caleb Williams|QB|CHI|98.1
+Makai Lemon|WR|PHI|98.9
+Josh Downs|WR|IND|99.6
+Romeo Doubs|WR|NE|99.7
+Stefon Diggs|WR|WAS|100.1
+Aaron Jones Sr.|RB|MIN|100.6
+Harold Fannin Jr.|TE|CLE|100.9
+Sam LaPorta|TE|DET|102.0
+Ricky Pearsall|WR|SF|102.5
+Kyle Monangai|RB|CHI|102.9
+Wan'Dale Robinson|WR|TEN|103.0
+Rashid Shaheed|WR|SEA|103.8
+Justin Herbert|QB|LAC|104.6
+Houston Defense|DEF|HOU|105.3
+Matthew Golden|WR|GB|105.3
+Jared Goff|QB|DET|107.5
+Blake Corum|RB|LAR|107.6
+Kyle Pitts Sr.|TE|ATL|108.7
+Jordan Mason|RB|MIN|109.2
+Dallas Goedert|TE|PHI|110.7
+Khalil Shakir|WR|BUF|111.3
+Jaxson Dart|QB|NYG|113.7
+Jonathon Brooks|RB|CAR|115.0
+Rachaad White|RB|WAS|117.7
+George Kittle|TE|SF|118.8
+Jayden Higgins|WR|HOU|119.8
+Minnesota Defense|DEF|MIN|119.8
+Jalen Coker|WR|CAR|120.8
+Brian Robinson|RB|ATL|121.2
+Detroit Defense|DEF|DET|121.3
+Bo Nix|QB|DEN|121.9
+Calvin Ridley|WR|TEN|122.1
+Kenny Gainwell|RB|TB|123.0
+KC Concepcion|WR|CLE|124.2
+LA Rams Defense|DEF|LAR|125.8
+Mark Andrews|TE|BAL|126.3
+Tre Tucker|WR|LV|127.5
+New England Defense|DEF|NE|128.2
+Brandon Aubrey|PK|DAL|129.3
+Philadelphia Defense|DEF|PHI|129.5
+Rashod Bateman|WR|BAL|129.8
+Travis Kelce|TE|KC|133.3
+Jerry Jeudy|WR|CLE|133.6
+Harrison Mevis|PK|LAR|134.3
+Isaiah Likely|TE|NYG|134.6
+John Metchie III|WR|CAR|134.7
+Jason Myers|PK|SEA|135.6
+Theo Wease Jr.|WR|MIA|135.8
+Baker Mayfield|QB|TB|136.5
+Zach Charbonnet|RB|SEA|137.5
+Chris Rodriguez Jr.|RB|JAX|138.9
+Jalen McMillan|WR|TB|139.5
+Jalen Nailor|WR|LV|140.9
+Ka'imi Fairbairn|PK|HOU|141.0
+Tyler Shough|QB|NO|141.4
+Pittsburgh Defense|DEF|PIT|142.0
+Dalton Kincaid|TE|BUF|142.3
+Jauan Jennings|WR|MIN|142.7
+LA Chargers Defense|DEF|LAC|143.3
+Kansas City Defense|DEF|KC|143.5
+Woody Marks|RB|HOU|144.2
+Denzel Boston|WR|CLE|145.6
+Jake Bates|PK|DET|147.2
+Cameron Dicker|PK|LAC|147.8
+Tyrone Tracy Jr.|RB|NYG|147.8
+De'Zhaun Stribling|WR|SF|148.1
+Keaton Mitchell|RB|LAC|148.2
+Alvin Kamara|RB|NO|150.1
+Tank Dell|WR|HOU|150.2
+Tank Bigsby|RB|PHI|150.4
+Daniel Jones|QB|IND|151.2
+Cam Little|PK|JAX|151.2
+Jake Ferguson|TE|DAL|151.6
+Jacksonville Defense|DEF|JAX|151.9
+Kyler Murray|QB|MIN|152.1
+Chase McLaughlin|PK|TB|152.6
+Hunter Henry|TE|NE|153.1
+Antonio Williams|WR|WAS|153.2
+Ryan Flournoy|WR|DAL|153.4
+Cooper Kupp|WR|SEA|153.4
+Sam Darnold|QB|SEA|153.9
+Isiah Pacheco|RB|DET|154.1
+Malik Willis|QB|MIA|154.1
+Tyler Allgeier|RB|ARI|155.3
+Malik Washington|WR|MIA|155.6
+Nick Folk|PK|ATL|156.6
+C.J. Stroud|QB|HOU|157.1
+Ja'Kobi Lane|WR|BAL|157.8
+Jordan Love|QB|GB|158.5
+Brenton Strange|TE|JAX|158.7
+Tyler Loop|PK|BAL|159.3
+Kayshon Boutte|WR|NE|159.5
+Adonai Mitchell|WR|NYJ|159.6
+Cleveland Defense|DEF|CLE|160.1
+Kenyon Sadiq|TE|NYJ|160.2
+Tennessee Defense|DEF|TEN|161.3
+Jaydon Blue|RB|DAL|161.4
+Tyjae Spears|RB|TEN|161.7
+Travis Hunter|WR|JAX|161.8
+Baltimore Defense|DEF|BAL|162.3
+Buffalo Defense|DEF|BUF|162.3
+Omar Cooper Jr.|WR|NYJ|162.8
+`.trim();
+
+const ADP_2QB = `
+Josh Allen|QB|BUF|1.5
+Jahmyr Gibbs|RB|DET|2.0
+Bijan Robinson|RB|ATL|2.6
+Puka Nacua|WR|LAR|5.4
+Drake Maye|QB|NE|6.0
+Jonathan Taylor|RB|IND|6.2
+Lamar Jackson|QB|BAL|6.8
+Joe Burrow|QB|CIN|7.6
+Ja'Marr Chase|WR|CIN|8.9
+Christian McCaffrey|RB|SF|11.4
+Jaxon Smith-Njigba|WR|SEA|11.8
+Dak Prescott|QB|DAL|11.8
+Derrick Henry|RB|BAL|12.5
+Jayden Daniels|QB|WAS|12.7
+Jalen Hurts|QB|PHI|16.1
+Amon-Ra St. Brown|WR|DET|17.0
+Brock Purdy|QB|SF|17.3
+Matthew Stafford|QB|LAR|17.4
+Trevor Lawrence|QB|JAX|17.4
+James Cook III|RB|BUF|18.0
+Patrick Mahomes|QB|KC|20.2
+Caleb Williams|QB|CHI|22.7
+De'Von Achane|RB|MIA|23.7
+Justin Herbert|QB|LAC|24.1
+Jared Goff|QB|DET|24.2
+Drake London|WR|ATL|25.6
+Saquon Barkley|RB|PHI|26.5
+Jaxson Dart|QB|NYG|26.7
+CeeDee Lamb|WR|DAL|26.9
+Ashton Jeanty|RB|LV|29.6
+Justin Jefferson|WR|MIN|30.3
+Bo Nix|QB|DEN|30.9
+George Pickens|WR|DAL|33.0
+Josh Jacobs|RB|GB|33.2
+A.J. Brown|WR|NE|34.2
+Chase Brown|RB|CIN|34.8
+Rashee Rice|WR|KC|36.7
+Omarion Hampton|RB|LAC|37.6
+Nico Collins|WR|HOU|37.8
+Baker Mayfield|QB|TB|38.2
+Kenneth Walker|RB|KC|42.3
+Zay Flowers|WR|BAL|42.4
+Kyren Williams|RB|LAR|43.0
+Chris Olave|WR|NO|43.0
+Breece Hall|RB|NYJ|46.6
+Tyler Shough|QB|NO|48.3
+Javonte Williams|RB|DAL|48.5
+Jeremiyah Love|RB|ARI|48.5
+Tee Higgins|WR|CIN|50.0
+Emeka Egbuka|WR|TB|51.2
+Cam Skattebo|RB|NYG|52.4
+Davante Adams|WR|LAR|52.6
+Sam Darnold|QB|SEA|53.1
+Tetairoa McMillan|WR|CAR|53.6
+Jordan Love|QB|GB|53.7
+Malik Nabers|WR|NYG|54.3
+Jameson Williams|WR|DET|55.8
+Kyler Murray|QB|MIN|56.0
+DeVonta Smith|WR|PHI|56.2
+Garrett Wilson|WR|NYJ|59.1
+Travis Etienne Jr.|RB|NO|60.2
+D'Andre Swift|RB|CHI|61.0
+Rome Odunze|WR|CHI|61.2
+Brock Bowers|TE|LV|62.4
+Terry McLaurin|WR|WAS|63.3
+Bucky Irving|RB|TB|65.1
+Quinshon Judkins|RB|CLE|65.5
+Trey McBride|TE|ARI|66.4
+C.J. Stroud|QB|HOU|67.6
+Bhayshul Tuten|RB|JAX|67.8
+Ladd McConkey|WR|LAC|67.9
+Daniel Jones|QB|IND|69.9
+Alec Pierce|WR|IND|70.0
+Jaylen Waddle|WR|DEN|72.8
+DJ Moore|WR|BUF|74.3
+David Montgomery|RB|HOU|74.5
+TreVeyon Henderson|RB|NE|74.5
+Luther Burden III|WR|CHI|76.8
+Malik Willis|QB|MIA|77.0
+Mike Evans|WR|SF|77.9
+Christian Watson|WR|GB|78.3
+Courtland Sutton|WR|DEN|80.8
+Colston Loveland|TE|CHI|81.7
+DK Metcalf|WR|PIT|82.0
+Jadarian Price|RB|SEA|82.8
+Tony Pollard|RB|TEN|83.1
+Marvin Harrison Jr.|WR|ARI|85.1
+Bryce Young|QB|CAR|88.7
+Parker Washington|WR|JAX|88.9
+Tyler Warren|TE|IND|89.2
+Brian Thomas Jr.|WR|JAX|89.8
+Rico Dowdle|RB|PIT|91.2
+Carnell Tate|WR|TEN|91.6
+Rhamondre Stevenson|RB|NE|92.3
+Cam Ward|QB|TEN|95.2
+Quentin Johnston|WR|LAC|96.3
+J.K. Dobbins|RB|DEN|96.8
+Chuba Hubbard|RB|CAR|97.2
+Jaylen Warren|RB|PIT|98.4
+Jordan Addison|WR|MIN|100.2
+Tucker Kraft|TE|GB|101.5
+Jordyn Tyson|WR|NO|102.1
+Jakobi Meyers|WR|JAX|102.4
+Jayden Reed|WR|GB|103.6
+Michael Wilson|WR|ARI|104.5
+Chris Godwin Jr.|WR|TB|106.2
+Jacoby Brissett|QB|ARI|107.0
+Xavier Worthy|WR|KC|107.1
+Harold Fannin Jr.|TE|CLE|108.5
+Sam LaPorta|TE|DET|109.1
+Denver Defense|DEF|DEN|109.5
+Michael Pittman Jr.|WR|PIT|109.7
+Chimere Dike|WR|TEN|110.1
+Geno Smith|QB|NYJ|110.3
+Kyle Pitts Sr.|TE|ATL|111.1
+Jacory Croskey-Merritt|RB|WAS|111.4
+Deebo Samuel Sr.|WR|SF|111.9
+Aaron Rodgers|QB|PIT|112.0
+Kyle Monangai|RB|CHI|112.5
+Makai Lemon|WR|PHI|114.3
+Seattle Defense|DEF|SEA|115.3
+RJ Harvey|RB|DEN|115.7
+Ricky Pearsall|WR|SF|118.2
+Aaron Jones Sr.|RB|MIN|118.6
+Stefon Diggs|WR|WAS|119.6
+Dallas Goedert|TE|PHI|120.2
+Houston Defense|DEF|HOU|120.6
+Romeo Doubs|WR|NE|122.5
+Blake Corum|RB|LAR|123.4
+Wan'Dale Robinson|WR|TEN|123.7
+Jordan Mason|RB|MIN|123.8
+Kenyon Sadiq|TE|NYJ|125.5
+George Kittle|TE|SF|126.1
+Jonah Coleman|RB|DEN|126.3
+Mark Andrews|TE|BAL|127.1
+Rashid Shaheed|WR|SEA|127.2
+Rachaad White|RB|WAS|127.4
+Josh Downs|WR|IND|127.8
+Matthew Golden|WR|GB|128.1
+Brandon Aubrey|PK|DAL|128.7
+Fernando Mendoza|QB|LV|128.7
+LA Rams Defense|DEF|LAR|131.3
+Deshaun Watson|QB|CLE|132.0
+Kenny Gainwell|RB|TB|132.9
+Jason Myers|PK|SEA|133.5
+Jonathon Brooks|RB|CAR|134.1
+Minnesota Defense|DEF|MIN|134.1
+Tua Tagovailoa|QB|ATL|134.6
+Khalil Shakir|WR|BUF|135.0
+KC Concepcion|WR|CLE|135.1
+Shedeur Sanders|QB|CLE|135.8
+Travis Kelce|TE|KC|136.5
+Jayden Higgins|WR|HOU|137.0
+Calvin Ridley|WR|TEN|137.4
+Detroit Defense|DEF|DET|137.7
+Ka'imi Fairbairn|PK|HOU|137.8
+Jalen Coker|WR|CAR|137.8
+Zach Charbonnet|RB|SEA|137.9
+New England Defense|DEF|NE|137.9
+Tre Tucker|WR|LV|138.1
+Philadelphia Defense|DEF|PHI|138.7
+Kirk Cousins|QB|LV|139.1
+Brenton Strange|TE|JAX|140.5
+Cameron Dicker|PK|LAC|140.6
+Carson Beck|QB|ARI|142.6
+Dalton Kincaid|TE|BUF|142.6
+De'Zhaun Stribling|WR|SF|142.7
+Isaiah Likely|TE|NYG|142.7
+Michael Penix Jr.|QB|ATL|142.8
+Pittsburgh Defense|DEF|PIT|143.3
+Tyjae Spears|RB|TEN|143.5
+Brian Robinson|RB|ATL|143.6
+Theo Wease Jr.|WR|MIA|143.6
+Harrison Mevis|PK|LAR|143.7
+John Metchie III|WR|CAR|144.7
+LA Chargers Defense|DEF|LAC|145.2
+Isiah Pacheco|RB|DET|145.4
+Dontayvion Wicks|WR|PHI|145.6
+Jake Bates|PK|DET|146.2
+Jacksonville Defense|DEF|JAX|147.0
+Hunter Henry|TE|NE|147.0
+Chris Boswell|PK|PIT|147.1
+Jake Ferguson|TE|DAL|147.8
+Tyler Allgeier|RB|ARI|148.2
+Chig Okonkwo|TE|WAS|148.2
+Brandon Aiyuk|WR|SF|148.7
+Tyler Loop|PK|BAL|149.4
+Eddy Pineiro|PK|SF|149.5
+Jerry Jeudy|WR|CLE|149.7
+Cam Little|PK|JAX|150.0
+Atlanta Defense|DEF|ATL|150.7
+Rashod Bateman|WR|BAL|150.8
+Jalen McMillan|WR|TB|151.0
+Tennessee Defense|DEF|TEN|151.6
+Chase McLaughlin|PK|TB|151.8
+Cairo Santos|PK|CHI|152.0
+Nick Folk|PK|ATL|152.0
+Alvin Kamara|RB|NO|152.4
+Jalen Nailor|WR|LV|153.0
+Baltimore Defense|DEF|BAL|153.1
+`.trim();
+
+
+/* Robert's four leagues, verified from each host's own settings page (Aug 16 2026).
+   `need` is what HIS roster must satisfy; `aiNeed` is what the simulated managers
+   chase -- they differ only where the real requirement would exhaust the player
+   pool (CBS mandates two kickers and two defenses per team; there aren't 24 of
+   each with a meaningful ADP). `drop` removes positions the league doesn't use. */
+/* Season projections from Sleeper's public projections API (2026 regular season).
+   name|pos|team|gp|passYd|passTd|int|rushYd|rushTd|rec|recYd|recTd|fumLost|sleeperStdPts
+   Raw stat lines let us score every player under each league's ACTUAL rules rather
+   than borrowing someone else's PPR list. Kickers and defenses keep Sleeper's own
+   point total — their stat lines come pre-bucketed and the scoring gap between
+   formats is small enough there that inventing detail would be false precision. */
+const PROJ_RAW = `
+Los Angeles Rams|DEF|LAR|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
+Houston Texans|DEF|HOU|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|104.0
+Seattle Seahawks|DEF|SEA|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|103.0
+Philadelphia Eagles|DEF|PHI|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|98.0
+Denver Broncos|DEF|DEN|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|96.0
+Baltimore Ravens|DEF|BAL|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|95.0
+New England Patriots|DEF|NE|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|92.0
+Minnesota Vikings|DEF|MIN|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|92.0
+Detroit Lions|DEF|DET|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|92.0
+Jacksonville Jaguars|DEF|JAX|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|91.0
+Pittsburgh Steelers|DEF|PIT|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|88.0
+Kansas City Chiefs|DEF|KC|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|87.0
+New York Giants|DEF|NYG|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|86.0
+Los Angeles Chargers|DEF|LAC|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|86.0
+Green Bay Packers|DEF|GB|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|86.0
+Dallas Cowboys|DEF|DAL|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|86.0
+Chicago Bears|DEF|CHI|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|85.0
+San Francisco 49ers|DEF|SF|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|84.0
+Indianapolis Colts|DEF|IND|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|84.0
+Buffalo Bills|DEF|BUF|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|84.0
+Atlanta Falcons|DEF|ATL|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|83.0
+Tampa Bay Buccaneers|DEF|TB|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|81.0
+Carolina Panthers|DEF|CAR|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|81.0
+Cincinnati Bengals|DEF|CIN|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|79.0
+New Orleans Saints|DEF|NO|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|77.0
+Washington Commanders|DEF|WAS|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|75.0
+Cleveland Browns|DEF|CLE|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|74.0
+Tennessee Titans|DEF|TEN|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|67.0
+Arizona Cardinals|DEF|ARI|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|66.0
+Las Vegas Raiders|DEF|LV|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|65.0
+New York Jets|DEF|NYJ|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|64.0
+Miami Dolphins|DEF|MIA|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|62.0
+Brandon Aubrey|K|DAL|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|116.0
+Ka'imi Fairbairn|K|HOU|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|113.0
+Cam Little|K|JAX|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|112.0
+Jason Myers|K|SEA|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|111.0
+Will Reichard|K|MIN|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|109.0
+Chris Boswell|K|PIT|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|107.0
+Cameron Dicker|K|LAC|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
+Evan McPherson|K|CIN|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
+Tyler Loop|K|BAL|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
+Harrison Mevis|K|LAR|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
+Chase McLaughlin|K|TB|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|105.0
+Jake Bates|K|DET|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|105.0
+Tyler Bass|K|BUF|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|103.0
+Eddy Pineiro|K|SF|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|101.0
+Harrison Butker|K|KC|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|100.0
+Wil Lutz|K|DEN|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|100.0
+Cairo Santos|K|CHI|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|100.0
+Blake Grupe|K|IND|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|99.0
+Andy Borregales|K|NE|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|96.0
+Nick Folk|K|ATL|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|95.0
+Charlie Smyth|K|NO|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|93.0
+Ryan Fitzgerald|K|CAR|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|92.0
+Jason Sanders|K|NYJ|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|91.0
+Jake Moody|K|WAS|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|91.0
+Jake Elliott|K|PHI|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|90.0
+Chad Ryland|K|ARI|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|89.0
+Joey Slye|K|TEN|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|84.0
+Andre Szmyt|K|CLE|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|84.0
+Matt Gay|K|LV|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|75.0
+Trey Smack|K|GB|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|70.0
+Zane Gonzalez|K|MIA|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|60.0
+Dominic Zvada|K|NYG|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|56.0
+Daniel Carlson|K||18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|52.0
+Brandon McManus|K||18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|46.0
+Ben Sauls|K|NYG|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|41.0
+Riley Patterson|K|MIA|18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|37.0
+Michael Badgley|K||18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|22.0
+Graham Gano|K||18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|22.0
+Younghoe Koo|K||18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|22.0
+Matt Prater|K||18.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|22.0
+Josh Allen|QB|BUF|18.0|3650.0|27.0|10.0|535.0|11.0|0.0|0.0|0.0|3.0|361.5
+Lamar Jackson|QB|BAL|18.0|3380.0|27.0|8.0|668.0|5.0|0.0|0.0|0.0|4.0|326.0
+Drake Maye|QB|NE|18.0|3854.0|29.0|11.0|416.0|4.0|0.0|0.0|0.0|3.0|320.8
+Jalen Hurts|QB|PHI|18.0|3326.0|21.0|8.0|515.0|9.0|0.0|0.0|0.0|3.0|310.5
+Jayden Daniels|QB|WAS|18.0|3328.0|21.0|9.0|686.0|6.0|0.0|0.0|0.0|3.0|308.7
+Joe Burrow|QB|CIN|18.0|4008.0|33.0|10.0|138.0|2.0|0.0|0.0|0.0|3.0|306.1
+Dak Prescott|QB|DAL|18.0|4292.0|31.0|13.0|152.0|1.0|0.0|0.0|0.0|2.0|303.9
+Trevor Lawrence|QB|JAX|18.0|3788.0|26.0|12.0|339.0|5.0|0.0|0.0|0.0|3.0|303.4
+Brock Purdy|QB|SF|18.0|3900.0|30.0|13.0|242.0|3.0|0.0|0.0|0.0|3.0|303.2
+Caleb Williams|QB|CHI|18.0|3651.0|28.0|10.0|373.0|3.0|0.0|0.0|0.0|3.0|299.3
+Jaxson Dart|QB|NYG|18.0|3366.0|22.0|12.0|539.0|6.0|0.0|0.0|0.0|3.0|296.5
+Bo Nix|QB|DEN|18.0|3768.0|26.0|12.0|330.0|4.0|0.0|0.0|0.0|3.0|295.7
+Justin Herbert|QB|LAC|18.0|3842.0|26.0|10.0|338.0|3.0|0.0|0.0|0.0|3.0|295.5
+Patrick Mahomes|QB|KC|18.0|3962.0|29.0|12.0|202.0|1.0|0.0|0.0|0.0|2.0|286.7
+Jared Goff|QB|DET|18.0|4104.0|30.0|10.0|53.0|1.0|0.0|0.0|0.0|3.0|283.5
+Matthew Stafford|QB|LAR|18.0|4033.0|32.0|11.0|19.0|0.0|0.0|0.0|0.0|2.0|280.2
+Jordan Love|QB|GB|18.0|3808.0|27.0|10.0|202.0|2.0|0.0|0.0|0.0|3.0|278.5
+Baker Mayfield|QB|TB|18.0|3682.0|26.0|13.0|306.0|2.0|0.0|0.0|0.0|4.0|274.9
+Tyler Shough|QB|NO|18.0|3666.0|22.0|12.0|343.0|3.0|0.0|0.0|0.0|3.0|270.9
+Malik Willis|QB|MIA|18.0|2848.0|17.0|9.0|712.0|5.0|0.0|0.0|0.0|2.0|270.1
+Kyler Murray|QB|MIN|18.0|3285.0|20.0|9.0|488.0|3.0|0.0|0.0|0.0|3.0|265.2
+Sam Darnold|QB|SEA|18.0|3676.0|26.0|12.0|157.0|2.0|0.0|0.0|0.0|3.0|262.7
+C.J. Stroud|QB|HOU|18.0|3405.0|21.0|12.0|220.0|2.0|0.0|0.0|0.0|3.0|238.2
+Bryce Young|QB|CAR|18.0|3202.0|20.0|11.0|245.0|3.0|0.0|0.0|0.0|3.0|235.6
+Cam Ward|QB|TEN|18.0|3516.0|19.0|13.0|182.0|2.0|0.0|0.0|0.0|4.0|227.8
+Daniel Jones|QB|IND|18.0|3286.0|19.0|11.0|191.0|2.0|0.0|0.0|0.0|3.0|223.5
+Geno Smith|QB|NYJ|18.0|3372.0|22.0|14.0|156.0|1.0|0.0|0.0|0.0|4.0|222.5
+Fernando Mendoza|QB|LV|18.0|2894.0|19.0|11.0|234.0|2.0|0.0|0.0|0.0|3.0|212.2
+Aaron Rodgers|QB|PIT|18.0|2700.0|18.0|7.0|60.0|0.0|0.0|0.0|0.0|2.0|177.0
+Jacoby Brissett|QB|ARI|18.0|2400.0|15.0|7.0|110.0|1.0|0.0|0.0|0.0|3.0|160.0
+Tua Tagovailoa|QB|ATL|18.0|2141.0|14.0|8.0|43.0|0.0|0.0|0.0|0.0|4.0|137.9
+Michael Penix|QB|ATL|18.0|1567.0|10.0|5.0|67.0|1.0|0.0|0.0|0.0|2.0|108.4
+Deshaun Watson|QB|CLE|18.0|1374.0|8.0|6.0|131.0|2.0|0.0|0.0|0.0|2.0|102.1
+Shedeur Sanders|QB|CLE|18.0|1433.0|7.0|5.0|88.0|2.0|0.0|0.0|0.0|2.0|97.1
+Carson Beck|QB|ARI|18.0|778.0|5.0|4.0|38.0|1.0|0.0|0.0|0.0|1.0|54.9
+Kirk Cousins|QB|LV|18.0|639.0|5.0|3.0|6.0|0.0|0.0|0.0|0.0|2.0|39.2
+Justin Fields|QB|KC|18.0|363.0|2.0|2.0|102.0|1.0|0.0|0.0|0.0|1.0|34.7
+Taylen Green|QB|CLE|18.0|335.0|2.0|2.0|69.0|1.0|0.0|0.0|0.0|1.0|30.3
+Joe Flacco|QB|CIN|18.0|448.0|3.0|2.0|8.0|0.0|0.0|0.0|0.0|0.0|28.7
+Gardner Minshew|QB|ARI|18.0|394.0|3.0|2.0|22.0|0.0|0.0|0.0|0.0|0.0|28.0
+Derek Carr|QB||18.0|447.0|3.0|2.0|13.0|0.0|0.0|0.0|0.0|1.0|27.2
+Mac Jones|QB|SF|18.0|423.0|3.0|2.0|18.0|0.0|0.0|0.0|0.0|1.0|26.7
+Cade Klubnik|QB|NYJ|18.0|400.0|2.0|2.0|20.0|0.0|0.0|0.0|0.0|0.0|24.0
+Will Howard|QB|PIT|18.0|410.0|2.0|2.0|21.0|0.0|0.0|0.0|0.0|1.0|22.5
+Drew Allar|QB|PIT|18.0|398.0|2.0|2.0|21.0|0.0|0.0|0.0|0.0|1.0|22.0
+Anthony Richardson|QB|IND|18.0|193.0|1.0|1.0|46.0|1.0|0.0|0.0|0.0|0.0|21.3
+J.J. McCarthy|QB|MIN|18.0|213.0|1.0|1.0|21.0|1.0|0.0|0.0|0.0|0.0|19.6
+Jahmyr Gibbs|RB|DET|18.0|0.0|0.0|0.0|1251.0|12.0|63.0|533.0|3.0|1.0|268.4
+Bijan Robinson|RB|ATL|18.0|0.0|0.0|0.0|1372.0|9.0|64.0|537.0|3.0|2.0|260.9
+Jonathan Taylor|RB|IND|18.0|0.0|0.0|0.0|1385.0|11.0|36.0|278.0|1.0|2.0|236.3
+Derrick Henry|RB|BAL|18.0|0.0|0.0|0.0|1406.0|12.0|17.0|133.0|1.0|2.0|229.9
+James Cook|RB|BUF|18.0|0.0|0.0|0.0|1270.0|11.0|31.0|268.0|2.0|2.0|229.8
+Christian McCaffrey|RB|SF|18.0|0.0|0.0|0.0|984.0|7.0|70.0|606.0|4.0|2.0|221.0
+Saquon Barkley|RB|PHI|18.0|0.0|0.0|0.0|1220.0|8.0|37.0|277.0|2.0|1.0|209.7
+Ashton Jeanty|RB|LV|18.0|0.0|0.0|0.0|1152.0|8.0|50.0|383.0|2.0|2.0|209.5
+Kenneth Walker|RB|KC|18.0|0.0|0.0|0.0|1158.0|9.0|37.0|272.0|2.0|1.0|207.0
+De'Von Achane|RB|MIA|18.0|0.0|0.0|0.0|1168.0|6.0|55.0|416.0|2.0|2.0|202.4
+Chase Brown|RB|CIN|18.0|0.0|0.0|0.0|945.0|8.0|57.0|417.0|3.0|2.0|198.2
+Omarion Hampton|RB|LAC|18.0|0.0|0.0|0.0|1025.0|8.0|48.0|364.0|2.0|2.0|194.9
+Kyren Williams|RB|LAR|18.0|0.0|0.0|0.0|981.0|8.0|32.0|219.0|2.0|2.0|176.0
+David Montgomery|RB|HOU|18.0|0.0|0.0|0.0|986.0|8.0|32.0|235.0|1.0|1.0|174.1
+Breece Hall|RB|NYJ|18.0|0.0|0.0|0.0|986.0|6.0|37.0|314.0|2.0|2.0|174.0
+Travis Etienne|RB|NO|18.0|0.0|0.0|0.0|950.0|6.0|36.0|287.0|2.0|1.0|171.7
+D'Andre Swift|RB|CHI|18.0|0.0|0.0|0.0|978.0|7.0|37.0|272.0|1.0|1.0|171.0
+Javonte Williams|RB|DAL|18.0|0.0|0.0|0.0|1004.0|7.0|37.0|239.0|1.0|1.0|170.3
+Josh Jacobs|RB|GB|18.0|0.0|0.0|0.0|918.0|8.0|33.0|258.0|1.0|2.0|169.6
+Jeremiyah Love|RB|ARI|18.0|0.0|0.0|0.0|897.0|5.0|47.0|351.0|2.0|1.0|164.8
+Quinshon Judkins|RB|CLE|18.0|0.0|0.0|0.0|1012.0|6.0|32.0|228.0|1.0|1.0|164.0
+Bucky Irving|RB|TB|18.0|0.0|0.0|0.0|902.0|6.0|36.0|271.0|2.0|2.0|161.3
+Cam Skattebo|RB|NYG|18.0|0.0|0.0|0.0|891.0|6.0|42.0|301.0|1.0|1.0|159.2
+Jadarian Price|RB|SEA|18.0|0.0|0.0|0.0|912.0|7.0|19.0|138.0|1.0|1.0|151.0
+Bhayshul Tuten|RB|JAX|18.0|0.0|0.0|0.0|794.0|6.0|32.0|234.0|1.0|1.0|142.8
+Rhamondre Stevenson|RB|NE|18.0|0.0|0.0|0.0|786.0|6.0|29.0|214.0|1.0|1.0|140.0
+TreVeyon Henderson|RB|NE|18.0|0.0|0.0|0.0|760.0|5.0|35.0|260.0|1.0|1.0|136.0
+Jaylen Warren|RB|PIT|18.0|0.0|0.0|0.0|759.0|5.0|36.0|267.0|1.0|2.0|134.6
+J.K. Dobbins|RB|DEN|18.0|0.0|0.0|0.0|732.0|6.0|26.0|190.0|1.0|0.0|134.2
+Jordan Mason|RB|MIN|18.0|0.0|0.0|0.0|797.0|6.0|20.0|140.0|1.0|1.0|133.7
+Tony Pollard|RB|TEN|18.0|0.0|0.0|0.0|794.0|5.0|28.0|187.0|1.0|1.0|132.1
+Kyle Monangai|RB|CHI|18.0|0.0|0.0|0.0|751.0|6.0|23.0|165.0|1.0|1.0|131.6
+Chuba Hubbard|RB|CAR|18.0|0.0|0.0|0.0|766.0|5.0|22.0|153.0|1.0|1.0|125.9
+Rico Dowdle|RB|PIT|18.0|0.0|0.0|0.0|678.0|4.0|38.0|273.0|1.0|1.0|123.1
+Jonathon Brooks|RB|CAR|18.0|0.0|0.0|0.0|684.0|4.0|34.0|245.0|1.0|1.0|120.9
+Blake Corum|RB|LAR|18.0|0.0|0.0|0.0|757.0|6.0|15.0|106.0|0.0|1.0|120.3
+Chris Rodriguez|RB|JAX|18.0|0.0|0.0|0.0|728.0|6.0|15.0|107.0|0.0|1.0|117.5
+Jacory Croskey-Merritt|RB|WAS|18.0|0.0|0.0|0.0|614.0|5.0|19.0|135.0|1.0|1.0|108.9
+RJ Harvey|RB|DEN|18.0|0.0|0.0|0.0|515.0|3.0|37.0|276.0|2.0|1.0|107.1
+Kenny Gainwell|RB|TB|18.0|0.0|0.0|0.0|418.0|3.0|47.0|355.0|2.0|1.0|105.3
+Aaron Jones|RB|MIN|18.0|0.0|0.0|0.0|563.0|3.0|34.0|248.0|1.0|1.0|103.1
+Rachaad White|RB|WAS|18.0|0.0|0.0|0.0|468.0|3.0|34.0|253.0|1.0|1.0|94.1
+Tyrone Tracy|RB|NYG|18.0|0.0|0.0|0.0|528.0|3.0|21.0|155.0|1.0|1.0|90.3
+Tyjae Spears|RB|TEN|18.0|0.0|0.0|0.0|388.0|2.0|35.0|248.0|1.0|1.0|79.6
+Keaton Mitchell|RB|LAC|18.0|0.0|0.0|0.0|435.0|3.0|18.0|134.0|1.0|1.0|78.9
+Dylan Sampson|RB|CLE|18.0|0.0|0.0|0.0|321.0|2.0|23.0|176.0|1.0|1.0|65.7
+Woody Marks|RB|HOU|18.0|0.0|0.0|0.0|351.0|2.0|19.0|137.0|1.0|1.0|64.8
+Tyler Allgeier|RB|ARI|18.0|0.0|0.0|0.0|400.0|3.0|8.0|54.0|0.0|1.0|61.4
+Tank Bigsby|RB|PHI|18.0|0.0|0.0|0.0|353.0|3.0|8.0|59.0|0.0|1.0|57.2
+Brian Robinson|RB|ATL|18.0|0.0|0.0|0.0|358.0|2.0|13.0|91.0|0.0|0.0|56.9
+Zach Charbonnet|RB|SEA|18.0|0.0|0.0|0.0|264.0|3.0|11.0|78.0|1.0|1.0|56.2
+Ray Davis|RB|BUF|18.0|0.0|0.0|0.0|313.0|3.0|9.0|68.0|0.0|0.0|56.1
+Samaje Perine|RB|CIN|18.0|0.0|0.0|0.0|275.0|2.0|14.0|103.0|1.0|0.0|55.8
+Jonah Coleman|RB|DEN|18.0|0.0|0.0|0.0|304.0|2.0|10.0|75.0|1.0|1.0|53.9
+Emmett Johnson|RB|KC|18.0|0.0|0.0|0.0|286.0|2.0|12.0|86.0|1.0|1.0|53.2
+Mike Washington|RB|LV|18.0|0.0|0.0|0.0|281.0|2.0|9.0|69.0|1.0|0.0|53.0
+Nicholas Singleton|RB|TEN|18.0|0.0|0.0|0.0|270.0|2.0|12.0|87.0|1.0|1.0|51.7
+Jordan James|RB|SF|18.0|0.0|0.0|0.0|287.0|2.0|11.0|80.0|0.0|0.0|48.7
+Jaydon Blue|RB|DAL|18.0|0.0|0.0|0.0|289.0|2.0|9.0|67.0|0.0|0.0|47.6
+Isaiah Davis|RB|NYJ|18.0|0.0|0.0|0.0|261.0|2.0|13.0|94.0|0.0|0.0|47.5
+James Conner|RB|ARI|18.0|0.0|0.0|0.0|220.0|2.0|11.0|82.0|1.0|1.0|46.2
+Kimani Vidal|RB|LAC|18.0|0.0|0.0|0.0|243.0|2.0|14.0|97.0|0.0|0.0|46.0
+Emanuel Wilson|RB|SEA|18.0|0.0|0.0|0.0|249.0|2.0|11.0|86.0|0.0|0.0|45.5
+MarShawn Lloyd|RB|GB|18.0|0.0|0.0|0.0|281.0|2.0|7.0|47.0|0.0|0.0|44.8
+Sean Tucker|RB|TB|18.0|0.0|0.0|0.0|288.0|2.0|8.0|57.0|0.0|1.0|44.5
+Justice Hill|RB|BAL|18.0|0.0|0.0|0.0|141.0|1.0|24.0|176.0|1.0|0.0|43.7
+Isiah Pacheco|RB|DET|18.0|0.0|0.0|0.0|263.0|2.0|10.0|73.0|0.0|1.0|43.6
+Alvin Kamara|RB|NO|18.0|0.0|0.0|0.0|185.0|1.0|20.0|145.0|1.0|1.0|43.0
+Chris Brooks|RB|GB|18.0|0.0|0.0|0.0|203.0|2.0|14.0|100.0|0.0|0.0|42.3
+Braelon Allen|RB|NYJ|18.0|0.0|0.0|0.0|233.0|2.0|10.0|69.0|0.0|0.0|42.2
+Ty Johnson|RB|BUF|18.0|0.0|0.0|0.0|137.0|1.0|17.0|131.0|1.0|0.0|38.8
+LeQuint Allen|RB|JAX|18.0|0.0|0.0|0.0|135.0|1.0|18.0|127.0|1.0|0.0|38.2
+Jaylen Wright|RB|MIA|18.0|0.0|0.0|0.0|223.0|2.0|6.0|38.0|0.0|0.0|38.1
+Kaytron Allen|RB|WAS|18.0|0.0|0.0|0.0|220.0|2.0|8.0|59.0|0.0|1.0|37.9
+Kaelon Black|RB|SF|18.0|0.0|0.0|0.0|200.0|2.0|6.0|43.0|0.0|0.0|36.3
+Seth McGowan|RB|IND|18.0|0.0|0.0|0.0|184.0|1.0|7.0|49.0|0.0|0.0|29.3
+Trevor Etienne|RB|CAR|18.0|0.0|0.0|0.0|164.0|1.0|8.0|58.0|0.0|0.0|28.2
+Malik Davis|RB|DAL|18.0|0.0|0.0|0.0|178.0|1.0|6.0|39.0|0.0|0.0|27.7
+Kaleb Johnson|RB|PIT|18.0|0.0|0.0|0.0|174.0|1.0|5.0|36.0|0.0|0.0|27.0
+Rasheen Ali|RB|BAL|18.0|0.0|0.0|0.0|120.0|1.0|12.0|87.0|0.0|0.0|26.7
+Emari Demercado|RB|KC|18.0|0.0|0.0|0.0|120.0|1.0|12.0|83.0|0.0|0.0|26.3
+J'Mari Taylor|RB|JAX|18.0|0.0|0.0|0.0|160.0|1.0|5.0|37.0|0.0|0.0|25.7
+Devin Neal|RB|NO|18.0|0.0|0.0|0.0|160.0|1.0|7.0|49.0|0.0|1.0|24.9
+Trey Benson|RB|ARI|18.0|0.0|0.0|0.0|120.0|1.0|3.0|22.0|1.0|1.0|24.2
+Austin Ekeler|RB||18.0|0.0|0.0|0.0|118.0|1.0|9.0|63.0|0.0|0.0|24.1
+DJ Giddens|RB|IND|18.0|0.0|0.0|0.0|137.0|1.0|6.0|43.0|0.0|0.0|24.0
+Will Shipley|RB|PHI|18.0|0.0|0.0|0.0|105.0|1.0|10.0|73.0|0.0|0.0|23.8
+Nick Chubb|RB||18.0|0.0|0.0|0.0|138.0|1.0|5.0|31.0|0.0|0.0|22.9
+Adam Randall|RB|BAL|18.0|0.0|0.0|0.0|103.0|1.0|8.0|58.0|0.0|0.0|22.1
+Jawhar Jordan|RB|HOU|18.0|0.0|0.0|0.0|127.0|1.0|5.0|33.0|0.0|0.0|22.0
+Tahj Brooks|RB|CIN|18.0|0.0|0.0|0.0|132.0|1.0|3.0|22.0|0.0|0.0|21.4
+Najee Harris|RB|NYG|18.0|0.0|0.0|0.0|117.0|1.0|5.0|36.0|0.0|0.0|21.3
+Desmond Reid|RB||18.0|0.0|0.0|0.0|122.0|1.0|4.0|31.0|0.0|0.0|21.3
+George Holani|RB|SEA|18.0|0.0|0.0|0.0|123.0|1.0|4.0|29.0|0.0|0.0|21.2
+Kareem Hunt|RB||18.0|0.0|0.0|0.0|130.0|1.0|3.0|22.0|0.0|0.0|21.2
+Demond Claiborne|RB|MIN|18.0|0.0|0.0|0.0|138.0|1.0|4.0|30.0|0.0|1.0|20.8
+Jerome Ford|RB|WAS|18.0|0.0|0.0|0.0|99.0|1.0|6.0|44.0|0.0|0.0|20.3
+Ollie Gordon|RB|MIA|18.0|0.0|0.0|0.0|120.0|1.0|3.0|22.0|0.0|0.0|20.2
+Audric Estime|RB|NO|18.0|0.0|0.0|0.0|119.0|1.0|3.0|17.0|0.0|0.0|19.6
+Isaac Guerendo|RB|SF|18.0|0.0|0.0|0.0|116.0|1.0|2.0|16.0|0.0|0.0|19.2
+Dameon Pierce|RB|PHI|18.0|0.0|0.0|0.0|106.0|1.0|3.0|22.0|0.0|0.0|18.8
+Jam Miller|RB|NE|18.0|0.0|0.0|0.0|92.0|1.0|3.0|22.0|0.0|0.0|17.4
+Brashard Smith|RB|KC|18.0|0.0|0.0|0.0|67.0|1.0|4.0|32.0|0.0|0.0|15.9
+Brock Bowers|TE|LV|18.0|0.0|0.0|0.0|18.0|0.0|102.0|1077.0|7.0|1.0|151.5
+Trey McBride|TE|ARI|18.0|0.0|0.0|0.0|0.0|0.0|96.0|969.0|7.0|1.0|138.9
+Colston Loveland|TE|CHI|18.0|0.0|0.0|0.0|4.0|0.0|84.0|950.0|6.0|0.0|131.4
+Sam LaPorta|TE|DET|18.0|0.0|0.0|0.0|3.0|0.0|76.0|842.0|6.0|0.0|120.5
+Tyler Warren|TE|IND|18.0|0.0|0.0|0.0|19.0|0.0|83.0|862.0|5.0|0.0|118.1
+Tucker Kraft|TE|GB|18.0|0.0|0.0|0.0|0.0|0.0|67.0|774.0|5.0|0.0|107.4
+George Kittle|TE|SF|18.0|0.0|0.0|0.0|0.0|0.0|62.0|713.0|6.0|0.0|107.3
+Harold Fannin|TE|CLE|18.0|0.0|0.0|0.0|25.0|0.0|74.0|739.0|5.0|0.0|106.4
+Kyle Pitts|TE|ATL|18.0|0.0|0.0|0.0|0.0|0.0|66.0|756.0|5.0|0.0|105.6
+Mark Andrews|TE|BAL|18.0|0.0|0.0|0.0|12.0|0.0|60.0|653.0|6.0|0.0|102.5
+Travis Kelce|TE|KC|18.0|0.0|0.0|0.0|0.0|0.0|70.0|714.0|5.0|0.0|101.4
+Brenton Strange|TE|JAX|18.0|0.0|0.0|0.0|0.0|0.0|63.0|680.0|5.0|0.0|98.0
+Dalton Kincaid|TE|BUF|18.0|0.0|0.0|0.0|0.0|0.0|66.0|736.0|4.0|0.0|97.6
+Hunter Henry|TE|NE|18.0|0.0|0.0|0.0|0.0|0.0|58.0|655.0|5.0|0.0|95.5
+Isaiah Likely|TE|NYG|18.0|0.0|0.0|0.0|0.0|0.0|62.0|653.0|5.0|0.0|95.3
+Jake Ferguson|TE|DAL|18.0|0.0|0.0|0.0|0.0|0.0|70.0|618.0|5.0|1.0|89.8
+T.J. Hockenson|TE|MIN|18.0|0.0|0.0|0.0|0.0|0.0|66.0|650.0|4.0|0.0|89.0
+Oronde Gadsden|TE|LAC|18.0|0.0|0.0|0.0|0.0|0.0|56.0|618.0|4.0|0.0|85.8
+Juwan Johnson|TE|NO|18.0|0.0|0.0|0.0|0.0|0.0|56.0|609.0|4.0|0.0|84.9
+AJ Barner|TE|SEA|18.0|0.0|0.0|0.0|14.0|1.0|58.0|530.0|4.0|0.0|84.4
+Chig Okonkwo|TE|WAS|18.0|0.0|0.0|0.0|0.0|0.0|61.0|591.0|4.0|0.0|83.1
+Dallas Goedert|TE|PHI|18.0|0.0|0.0|0.0|0.0|0.0|53.0|590.0|4.0|0.0|83.0
+Dalton Schultz|TE|HOU|18.0|0.0|0.0|0.0|0.0|0.0|58.0|572.0|4.0|0.0|81.2
+Pat Freiermuth|TE|PIT|18.0|0.0|0.0|0.0|0.0|0.0|51.0|534.0|4.0|0.0|77.4
+Darren Waller|TE|CAR|18.0|0.0|0.0|0.0|0.0|0.0|47.0|516.0|4.0|0.0|75.6
+Gunnar Helm|TE|TEN|18.0|0.0|0.0|0.0|0.0|0.0|57.0|553.0|3.0|0.0|73.3
+Cade Otton|TE|TB|18.0|0.0|0.0|0.0|0.0|0.0|53.0|513.0|3.0|0.0|69.3
+Terrance Ferguson|TE|LAR|18.0|0.0|0.0|0.0|0.0|0.0|35.0|413.0|4.0|0.0|65.3
+Greg Dulcich|TE|MIA|18.0|0.0|0.0|0.0|0.0|0.0|47.0|459.0|3.0|0.0|63.9
+Mike Gesicki|TE|CIN|18.0|0.0|0.0|0.0|0.0|0.0|42.0|449.0|3.0|0.0|62.9
+Kenyon Sadiq|TE|NYJ|18.0|0.0|0.0|0.0|7.0|0.0|40.0|415.0|3.0|0.0|60.2
+Mason Taylor|TE|NYJ|18.0|0.0|0.0|0.0|0.0|0.0|40.0|384.0|3.0|0.0|56.4
+Darnell Washington|TE|PIT|18.0|0.0|0.0|0.0|0.0|0.0|33.0|341.0|3.0|0.0|52.1
+Eli Stowers|TE|PHI|18.0|0.0|0.0|0.0|5.0|0.0|31.0|319.0|3.0|0.0|50.4
+Dawson Knox|TE|BUF|18.0|0.0|0.0|0.0|0.0|0.0|28.0|304.0|3.0|0.0|48.4
+Colby Parkinson|TE|LAR|18.0|0.0|0.0|0.0|0.0|0.0|29.0|293.0|3.0|0.0|47.3
+Michael Mayer|TE|LV|18.0|0.0|0.0|0.0|0.0|0.0|34.0|348.0|2.0|0.0|46.8
+Theo Johnson|TE|NYG|18.0|0.0|0.0|0.0|0.0|0.0|31.0|340.0|2.0|0.0|46.0
+Cole Kmet|TE|CHI|18.0|0.0|0.0|0.0|0.0|0.0|34.0|337.0|2.0|0.0|45.7
+Elijah Arroyo|TE|SEA|18.0|0.0|0.0|0.0|0.0|0.0|29.0|312.0|2.0|0.0|43.2
+Jake Tonges|TE|SF|18.0|0.0|0.0|0.0|0.0|0.0|30.0|288.0|2.0|0.0|40.8
+Evan Engram|TE|DEN|18.0|0.0|0.0|0.0|0.0|0.0|31.0|277.0|2.0|0.0|39.7
+Will Kacmarek|TE|MIA|18.0|0.0|0.0|0.0|0.0|0.0|25.0|246.0|2.0|0.0|36.6
+Noah Gray|TE|KC|18.0|0.0|0.0|0.0|0.0|0.0|24.0|231.0|2.0|0.0|35.1
+David Njoku|TE|LAC|18.0|0.0|0.0|0.0|0.0|0.0|23.0|230.0|2.0|0.0|35.0
+Justin Joly|TE|DEN|18.0|0.0|0.0|0.0|0.0|0.0|23.0|230.0|2.0|0.0|35.0
+Joe Royer|TE|CLE|18.0|0.0|0.0|0.0|0.0|0.0|23.0|228.0|2.0|0.0|34.8
+Max Klare|TE|LAR|18.0|0.0|0.0|0.0|0.0|0.0|22.0|221.0|2.0|0.0|34.1
+Jack Endries|TE|CIN|18.0|0.0|0.0|0.0|0.0|0.0|21.0|203.0|2.0|0.0|32.3
+John Michael Gyllenborg|TE|KC|18.0|0.0|0.0|0.0|0.0|0.0|11.0|114.0|1.0|0.0|29.4
+Elijah Higgins|TE|ARI|18.0|0.0|0.0|0.0|0.0|0.0|18.0|179.0|1.0|0.0|23.9
+Luke Musgrave|TE|GB|18.0|0.0|0.0|0.0|0.0|0.0|17.0|176.0|1.0|0.0|23.6
+Daniel Bellinger|TE|TEN|18.0|0.0|0.0|0.0|0.0|0.0|17.0|171.0|1.0|0.0|23.1
+Oscar Delp|TE|NO|18.0|0.0|0.0|0.0|0.0|0.0|17.0|164.0|1.0|0.0|22.4
+Charlie Kolar|TE|LAC|18.0|0.0|0.0|0.0|2.0|0.0|16.0|162.0|1.0|0.0|22.4
+Noah Fant|TE|NO|18.0|0.0|0.0|0.0|0.0|0.0|15.0|156.0|1.0|0.0|21.6
+Jonnu Smith|TE||18.0|0.0|0.0|0.0|10.0|0.0|15.0|139.0|1.0|0.0|20.9
+Zach Ertz|TE||18.0|0.0|0.0|0.0|0.0|0.0|16.0|147.0|1.0|0.0|20.7
+Michael Trigg|TE|DAL|18.0|0.0|0.0|0.0|0.0|0.0|14.0|138.0|1.0|0.0|19.8
+Sam Roush|TE|CHI|18.0|0.0|0.0|0.0|0.0|0.0|14.0|135.0|1.0|0.0|19.5
+Austin Hooper|TE|ATL|18.0|0.0|0.0|0.0|0.0|0.0|14.0|132.0|1.0|0.0|19.2
+Cade Stover|TE|HOU|18.0|0.0|0.0|0.0|2.0|0.0|14.0|130.0|1.0|0.0|19.2
+Eli Raridon|TE|NE|18.0|0.0|0.0|0.0|0.0|0.0|14.0|130.0|1.0|0.0|19.0
+Tyler Higbee|TE|LAR|18.0|0.0|0.0|0.0|0.0|0.0|14.0|129.0|1.0|0.0|18.9
+Jackson Hawes|TE|BUF|18.0|0.0|0.0|0.0|0.0|0.0|13.0|129.0|1.0|0.0|18.9
+Tanner Koziol|TE|JAX|18.0|0.0|0.0|0.0|0.0|0.0|14.0|128.0|1.0|0.0|18.8
+John Bates|TE|WAS|18.0|0.0|0.0|0.0|0.0|0.0|13.0|128.0|1.0|0.0|18.8
+Tommy Tremble|TE|CAR|18.0|0.0|0.0|0.0|0.0|0.0|13.0|128.0|1.0|0.0|18.8
+Matt Hibner|TE|BAL|18.0|0.0|0.0|0.0|0.0|0.0|13.0|128.0|1.0|0.0|18.8
+Drew Sample|TE|CIN|18.0|0.0|0.0|0.0|0.0|0.0|13.0|126.0|1.0|0.0|18.6
+Miles Kitselman|TE||18.0|0.0|0.0|0.0|0.0|0.0|13.0|126.0|1.0|0.0|18.6
+Jaren Kanak|TE|TEN|18.0|0.0|0.0|0.0|0.0|0.0|13.0|126.0|1.0|0.0|18.6
+Lance Mason|TE|PIT|18.0|0.0|0.0|0.0|0.0|0.0|13.0|126.0|1.0|0.0|18.6
+Josh Oliver|TE|MIN|18.0|0.0|0.0|0.0|0.0|0.0|13.0|124.0|1.0|0.0|18.4
+Luke Schoonmaker|TE|DAL|18.0|0.0|0.0|0.0|0.0|0.0|13.0|124.0|1.0|0.0|18.4
+Marlin Klein|TE|HOU|18.0|0.0|0.0|0.0|0.0|0.0|12.0|115.0|1.0|0.0|17.5
+Brevyn Spann-Ford|TE|DAL|18.0|0.0|0.0|0.0|0.0|0.0|12.0|114.0|1.0|0.0|17.4
+Adam Trautman|TE|DEN|18.0|0.0|0.0|0.0|0.0|0.0|11.0|108.0|1.0|0.0|16.8
+Josh Cuevas|TE|BAL|18.0|0.0|0.0|0.0|0.0|0.0|11.0|108.0|1.0|0.0|16.8
+Ben Sinnott|TE|WAS|18.0|0.0|0.0|0.0|0.0|0.0|11.0|105.0|1.0|0.0|16.5
+Nate Boerkircher|TE|JAX|18.0|0.0|0.0|0.0|0.0|0.0|11.0|104.0|1.0|0.0|16.4
+Brock Wright|TE|DET|18.0|0.0|0.0|0.0|0.0|0.0|11.0|103.0|1.0|0.0|16.3
+Will Dissly|TE||18.0|0.0|0.0|0.0|0.0|0.0|11.0|100.0|1.0|0.0|16.0
+Grant Calcaterra|TE|PHI|18.0|0.0|0.0|0.0|0.0|0.0|10.0|96.0|1.0|0.0|15.6
+Puka Nacua|WR|LAR|18.0|0.0|0.0|0.0|55.0|0.0|107.0|1400.0|10.0|1.0|205.5
+Ja'Marr Chase|WR|CIN|18.0|0.0|0.0|0.0|16.0|0.0|109.0|1345.0|11.0|1.0|202.1
+Jaxon Smith-Njigba|WR|SEA|18.0|0.0|0.0|0.0|33.0|0.0|99.0|1343.0|8.0|1.0|185.6
+Amon-Ra St. Brown|WR|DET|18.0|0.0|0.0|0.0|16.0|0.0|106.0|1249.0|8.0|1.0|174.5
+CeeDee Lamb|WR|DAL|18.0|0.0|0.0|0.0|16.0|0.0|96.0|1249.0|8.0|1.0|174.5
+Nico Collins|WR|HOU|18.0|0.0|0.0|0.0|18.0|0.0|82.0|1237.0|7.0|0.0|169.5
+A.J. Brown|WR|NE|18.0|0.0|0.0|0.0|6.0|0.0|79.0|1176.0|8.0|0.0|168.2
+George Pickens|WR|DAL|18.0|0.0|0.0|0.0|6.0|0.0|80.0|1211.0|7.0|0.0|165.7
+Justin Jefferson|WR|MIN|18.0|0.0|0.0|0.0|6.0|0.0|90.0|1178.0|7.0|0.0|160.4
+Drake London|WR|ATL|18.0|0.0|0.0|0.0|6.0|0.0|90.0|1156.0|7.0|0.0|160.2
+Chris Olave|WR|NO|18.0|0.0|0.0|0.0|6.0|0.0|82.0|1093.0|7.0|0.0|153.9
+Mike Evans|WR|SF|18.0|0.0|0.0|0.0|0.0|0.0|70.0|1022.0|8.0|0.0|152.2
+Tee Higgins|WR|CIN|18.0|0.0|0.0|0.0|6.0|0.0|75.0|1048.0|7.0|0.0|149.4
+DeVonta Smith|WR|PHI|18.0|0.0|0.0|0.0|6.0|0.0|80.0|1066.0|7.0|0.0|149.2
+Zay Flowers|WR|BAL|18.0|0.0|0.0|0.0|29.0|0.0|81.0|1103.0|6.0|1.0|147.2
+Ladd McConkey|WR|LAC|18.0|0.0|0.0|0.0|12.0|0.0|81.0|1040.0|7.0|0.0|147.2
+Emeka Egbuka|WR|TB|18.0|0.0|0.0|0.0|21.0|0.0|77.0|1029.0|7.0|0.0|147.0
+Jameson Williams|WR|DET|18.0|0.0|0.0|0.0|44.0|0.0|60.0|998.0|7.0|0.0|146.2
+Tetairoa McMillan|WR|CAR|18.0|0.0|0.0|0.0|6.0|0.0|77.0|1074.0|6.0|0.0|146.0
+Malik Nabers|WR|NYG|18.0|0.0|0.0|0.0|16.0|0.0|82.0|1057.0|6.0|0.0|145.3
+Christian Watson|WR|GB|18.0|0.0|0.0|0.0|14.0|0.0|63.0|1012.0|7.0|0.0|144.6
+Jaylen Waddle|WR|DEN|18.0|0.0|0.0|0.0|18.0|0.0|77.0|1002.0|7.0|0.0|144.0
+Garrett Wilson|WR|NYJ|18.0|0.0|0.0|0.0|16.0|0.0|83.0|1043.0|6.0|0.0|141.9
+Rashee Rice|WR|KC|18.0|0.0|0.0|0.0|29.0|0.0|88.0|964.0|7.0|1.0|141.3
+Parker Washington|WR|JAX|18.0|0.0|0.0|0.0|58.0|0.0|72.0|906.0|7.0|0.0|140.4
+Rome Odunze|WR|CHI|18.0|0.0|0.0|0.0|6.0|0.0|68.0|973.0|7.0|0.0|139.9
+Terry McLaurin|WR|WAS|18.0|0.0|0.0|0.0|7.0|0.0|74.0|1031.0|6.0|0.0|139.8
+Luther Burden|WR|CHI|18.0|0.0|0.0|0.0|61.0|0.0|72.0|889.0|7.0|0.0|137.0
+Brian Thomas|WR|JAX|18.0|0.0|0.0|0.0|17.0|0.0|62.0|897.0|7.0|0.0|133.4
+Davante Adams|WR|LAR|18.0|0.0|0.0|0.0|0.0|0.0|63.0|795.0|8.0|0.0|129.5
+Jayden Reed|WR|GB|18.0|0.0|0.0|0.0|83.0|0.0|70.0|853.0|6.0|1.0|127.6
+Marvin Harrison|WR|ARI|18.0|0.0|0.0|0.0|0.0|0.0|62.0|882.0|6.0|0.0|124.2
+Alec Pierce|WR|IND|18.0|0.0|0.0|0.0|7.0|0.0|54.0|872.0|6.0|0.0|123.9
+DK Metcalf|WR|PIT|18.0|0.0|0.0|0.0|10.0|0.0|62.0|843.0|6.0|0.0|121.3
+DJ Moore|WR|BUF|18.0|0.0|0.0|0.0|29.0|0.0|63.0|851.0|5.0|1.0|116.0
+Courtland Sutton|WR|DEN|18.0|0.0|0.0|0.0|0.0|0.0|59.0|793.0|6.0|0.0|115.3
+Carnell Tate|WR|TEN|18.0|0.0|0.0|0.0|10.0|0.0|65.0|813.0|5.0|0.0|112.3
+Matthew Golden|WR|GB|18.0|0.0|0.0|0.0|51.0|0.0|58.0|770.0|5.0|0.0|112.1
+Jordan Addison|WR|MIN|18.0|0.0|0.0|0.0|22.0|0.0|60.0|795.0|5.0|0.0|111.7
+Makai Lemon|WR|PHI|18.0|0.0|0.0|0.0|10.0|0.0|60.0|775.0|5.0|0.0|108.5
+Jayden Higgins|WR|HOU|18.0|0.0|0.0|0.0|6.0|0.0|57.0|778.0|5.0|0.0|108.4
+Michael Wilson|WR|ARI|18.0|0.0|0.0|0.0|6.0|0.0|59.0|764.0|5.0|0.0|107.0
+Xavier Worthy|WR|KC|18.0|0.0|0.0|0.0|90.0|1.0|55.0|695.0|4.0|1.0|106.5
+Jalen Coker|WR|CAR|18.0|0.0|0.0|0.0|6.0|0.0|60.0|753.0|5.0|0.0|105.9
+Quentin Johnston|WR|LAC|18.0|0.0|0.0|0.0|11.0|0.0|58.0|748.0|5.0|0.0|105.9
+Chris Godwin|WR|TB|18.0|0.0|0.0|0.0|6.0|0.0|68.0|750.0|5.0|0.0|105.6
+Jakobi Meyers|WR|JAX|18.0|0.0|0.0|0.0|21.0|0.0|64.0|732.0|5.0|0.0|105.3
+Romeo Doubs|WR|NE|18.0|0.0|0.0|0.0|0.0|0.0|57.0|742.0|5.0|0.0|104.2
+Josh Downs|WR|IND|18.0|0.0|0.0|0.0|13.0|0.0|70.0|770.0|4.0|0.0|102.3
+Michael Pittman|WR|PIT|18.0|0.0|0.0|0.0|7.0|0.0|69.0|772.0|4.0|0.0|101.9
+Khalil Shakir|WR|BUF|18.0|0.0|0.0|0.0|10.0|0.0|71.0|747.0|4.0|0.0|99.7
+Wan'Dale Robinson|WR|TEN|18.0|0.0|0.0|0.0|16.0|0.0|71.0|741.0|4.0|0.0|99.7
+Deebo Samuel|WR|SF|18.0|0.0|0.0|0.0|89.0|1.0|56.0|628.0|4.0|1.0|99.7
+KC Concepcion|WR|CLE|18.0|0.0|0.0|0.0|54.0|0.0|58.0|710.0|4.0|1.0|98.4
+Stefon Diggs|WR|WAS|18.0|0.0|0.0|0.0|6.0|0.0|64.0|687.0|4.0|0.0|93.3
+Rashid Shaheed|WR|SEA|18.0|0.0|0.0|0.0|46.0|0.0|45.0|665.0|4.0|1.0|93.1
+Jalen Nailor|WR|LV|18.0|0.0|0.0|0.0|19.0|0.0|46.0|587.0|4.0|0.0|84.6
+Jalen McMillan|WR|TB|18.0|0.0|0.0|0.0|33.0|0.0|44.0|561.0|4.0|0.0|83.4
+Malik Washington|WR|MIA|18.0|0.0|0.0|0.0|121.0|1.0|48.0|472.0|3.0|0.0|83.3
+De'Zhaun Stribling|WR|SF|18.0|0.0|0.0|0.0|0.0|0.0|46.0|584.0|4.0|0.0|82.4
+Omar Cooper|WR|NYJ|18.0|0.0|0.0|0.0|14.0|0.0|45.0|567.0|4.0|0.0|82.1
+Denzel Boston|WR|CLE|18.0|0.0|0.0|0.0|13.0|0.0|53.0|624.0|3.0|0.0|81.7
+Tre Tucker|WR|LV|18.0|0.0|0.0|0.0|37.0|0.0|46.0|582.0|3.0|0.0|79.9
+Jerry Jeudy|WR|CLE|18.0|0.0|0.0|0.0|5.0|0.0|43.0|581.0|3.0|0.0|76.6
+Ryan Flournoy|WR|DAL|18.0|0.0|0.0|0.0|13.0|0.0|47.0|549.0|3.0|0.0|74.2
+Tre' Harris|WR|LAC|18.0|0.0|0.0|0.0|6.0|0.0|39.0|493.0|4.0|0.0|73.9
+Jordyn Tyson|WR|NO|18.0|0.0|0.0|0.0|6.0|0.0|41.0|514.0|3.0|0.0|70.0
+Ja'Kobi Lane|WR|BAL|18.0|0.0|0.0|0.0|6.0|0.0|35.0|453.0|4.0|0.0|69.9
+Devaughn Vele|WR|NO|18.0|0.0|0.0|0.0|10.0|0.0|42.0|496.0|3.0|0.0|68.6
+Jauan Jennings|WR|MIN|18.0|0.0|0.0|0.0|0.0|0.0|39.0|487.0|3.0|0.0|66.7
+Rashod Bateman|WR|BAL|18.0|0.0|0.0|0.0|0.0|0.0|36.0|483.0|3.0|0.0|66.3
+Travis Hunter|WR|JAX|18.0|0.0|0.0|0.0|21.0|0.0|35.0|415.0|3.0|0.0|65.6
+Kayshon Boutte|WR|NE|18.0|0.0|0.0|0.0|0.0|0.0|31.0|456.0|3.0|0.0|63.6
+Adonai Mitchell|WR|NYJ|18.0|0.0|0.0|0.0|10.0|0.0|35.0|443.0|3.0|0.0|63.3
+Germie Bernard|WR|PIT|18.0|0.0|0.0|0.0|10.0|0.0|36.0|439.0|3.0|0.0|62.9
+Keenan Allen|WR|IND|18.0|0.0|0.0|0.0|0.0|0.0|44.0|448.0|3.0|0.0|62.8
+Ted Hurst|WR|TB|18.0|0.0|0.0|0.0|13.0|0.0|36.0|426.0|3.0|0.0|61.9
+Pat Bryant|WR|DEN|18.0|0.0|0.0|0.0|9.0|0.0|35.0|425.0|3.0|0.0|61.4
+Tory Horton|WR|SEA|18.0|0.0|0.0|0.0|9.0|0.0|31.0|421.0|3.0|0.0|61.0
+Caleb Douglas|WR|MIA|18.0|0.0|0.0|0.0|0.0|0.0|34.0|428.0|3.0|0.0|60.8
+Tyreek Hill|WR||18.0|0.0|0.0|0.0|5.0|0.0|33.0|422.0|3.0|0.0|60.7
+Cyrus Allen|WR|KC|18.0|0.0|0.0|0.0|0.0|0.0|34.0|425.0|3.0|0.0|60.5
+Andrei Iosivas|WR|CIN|18.0|0.0|0.0|0.0|10.0|0.0|32.0|403.0|3.0|0.0|59.3
+Isaac TeSlaa|WR|DET|18.0|0.0|0.0|0.0|9.0|0.0|28.0|402.0|3.0|0.0|59.1
+Malachi Fields|WR|NYG|18.0|0.0|0.0|0.0|6.0|0.0|32.0|404.0|3.0|0.0|59.0
+Keon Coleman|WR|BUF|18.0|0.0|0.0|0.0|13.0|0.0|29.0|375.0|3.0|0.0|56.8
+Darius Slayton|WR|NYG|18.0|0.0|0.0|0.0|0.0|0.0|27.0|386.0|3.0|0.0|56.6
+Cooper Kupp|WR|SEA|18.0|0.0|0.0|0.0|0.0|0.0|32.0|364.0|3.0|0.0|54.4
+Jaylin Noel|WR|HOU|18.0|0.0|0.0|0.0|37.0|0.0|31.0|362.0|2.0|0.0|51.9
+Chimere Dike|WR|TEN|18.0|0.0|0.0|0.0|30.0|0.0|38.0|384.0|2.0|1.0|51.4
+KaVontae Turpin|WR|DAL|18.0|0.0|0.0|0.0|77.0|1.0|21.0|268.0|2.0|1.0|50.5
+Calvin Ridley|WR|TEN|18.0|0.0|0.0|0.0|6.0|0.0|27.0|377.0|2.0|0.0|50.3
+Zachariah Branch|WR|ATL|18.0|0.0|0.0|0.0|0.0|0.0|30.0|365.0|2.0|0.0|48.5
+Jack Bech|WR|LV|18.0|0.0|0.0|0.0|9.0|0.0|30.0|350.0|2.0|0.0|47.9
+Antonio Williams|WR|WAS|18.0|0.0|0.0|0.0|13.0|0.0|28.0|339.0|2.0|0.0|47.2
+Kendrick Bourne|WR|ARI|18.0|0.0|0.0|0.0|0.0|0.0|31.0|344.0|2.0|0.0|46.4
+Olamide Zaccheaus|WR|ATL|18.0|0.0|0.0|0.0|12.0|0.0|30.0|326.0|2.0|0.0|45.8
+Tank Dell|WR|HOU|18.0|0.0|0.0|0.0|17.0|0.0|24.0|317.0|2.0|0.0|45.4
+Jahan Dotson|WR|ATL|18.0|0.0|0.0|0.0|16.0|0.0|26.0|316.0|2.0|0.0|45.2
+DeMario Douglas|WR|NE|18.0|0.0|0.0|0.0|28.0|0.0|24.0|300.0|2.0|0.0|44.8
+Dontayvion Wicks|WR|PHI|18.0|0.0|0.0|0.0|8.0|0.0|26.0|316.0|2.0|0.0|44.4
+Marvin Mims|WR|DEN|18.0|0.0|0.0|0.0|36.0|0.0|27.0|293.0|2.0|1.0|42.9
+Tyquan Thornton|WR|KC|18.0|0.0|0.0|0.0|0.0|0.0|20.0|306.0|2.0|0.0|42.6
+Marquise Brown|WR|PHI|18.0|0.0|0.0|0.0|0.0|0.0|25.0|305.0|2.0|0.0|42.5
+Chris Bell|WR|MIA|18.0|0.0|0.0|0.0|3.0|0.0|25.0|299.0|2.0|0.0|42.2
+Troy Franklin|WR|DEN|18.0|0.0|0.0|0.0|14.0|0.0|24.0|287.0|2.0|0.0|42.1
+Xavier Legette|WR|CAR|18.0|0.0|0.0|0.0|10.0|0.0|24.0|290.0|2.0|0.0|42.0
+Skyler Bell|WR|BUF|18.0|0.0|0.0|0.0|5.0|0.0|22.0|291.0|2.0|0.0|41.6
+Barion Brown|WR|NO|18.0|0.0|0.0|0.0|0.0|0.0|22.0|290.0|2.0|0.0|41.0
+Isaiah Bond|WR|CLE|18.0|0.0|0.0|0.0|19.0|0.0|22.0|269.0|2.0|0.0|40.8
+Malik Benson|WR|LV|18.0|0.0|0.0|0.0|0.0|0.0|21.0|276.0|2.0|0.0|39.6
+Darnell Mooney|WR|NYG|18.0|0.0|0.0|0.0|3.0|0.0|19.0|273.0|2.0|0.0|39.6
+Elijah Sarratt|WR|BAL|18.0|0.0|0.0|0.0|4.0|0.0|22.0|270.0|2.0|0.0|39.4
+Mack Hollins|WR|NE|18.0|0.0|0.0|0.0|6.0|0.0|21.0|263.0|2.0|0.0|38.9
+Josh Cameron|WR|JAX|18.0|0.0|0.0|0.0|22.0|0.0|21.0|244.0|2.0|0.0|38.6
+Zavion Thomas|WR|CHI|18.0|0.0|0.0|0.0|0.0|0.0|20.0|252.0|2.0|0.0|37.2
+Elic Ayomanor|WR|TEN|18.0|0.0|0.0|0.0|0.0|0.0|20.0|247.0|2.0|0.0|36.7
+Calvin Austin|WR|NYG|18.0|0.0|0.0|0.0|17.0|0.0|21.0|261.0|1.0|0.0|33.8
+Brandon Aiyuk|WR|SF|18.0|0.0|0.0|0.0|3.0|0.0|16.0|213.0|2.0|0.0|33.6
+John Metchie|WR|CAR|18.0|0.0|0.0|0.0|8.0|0.0|20.0|220.0|1.0|0.0|28.8
+Christian Kirk|WR|SF|18.0|0.0|0.0|0.0|9.0|0.0|19.0|205.0|1.0|0.0|27.4
+Greg Dortch|WR|DET|18.0|0.0|0.0|0.0|16.0|0.0|21.0|215.0|1.0|1.0|27.1
+Konata Mumpfield|WR|LAR|18.0|0.0|0.0|0.0|0.0|0.0|16.0|197.0|1.0|0.0|25.7
+Brenen Thompson|WR|LAC|18.0|0.0|0.0|0.0|0.0|0.0|14.0|190.0|1.0|0.0|25.0
+Tez Johnson|WR|TB|18.0|0.0|0.0|0.0|10.0|0.0|14.0|174.0|1.0|0.0|24.4
+CJ Daniels|WR|LAR|18.0|0.0|0.0|0.0|6.0|0.0|15.0|177.0|1.0|0.0|24.3
+Demarcus Robinson|WR|SF|18.0|0.0|0.0|0.0|0.0|0.0|14.0|181.0|1.0|0.0|24.1
+Bryce Lance|WR|NO|18.0|0.0|0.0|0.0|0.0|0.0|15.0|177.0|1.0|0.0|23.7
+Jaylin Lane|WR|WAS|18.0|0.0|0.0|0.0|14.0|0.0|14.0|163.0|1.0|0.0|23.7
+Treylon Burks|WR|WAS|18.0|0.0|0.0|0.0|16.0|0.0|12.0|152.0|1.0|0.0|22.8
+KeAndre Lambert-Smith|WR|LAC|18.0|0.0|0.0|0.0|6.0|0.0|13.0|159.0|1.0|0.0|22.5
+Savion Williams|WR|GB|18.0|0.0|0.0|0.0|42.0|0.0|10.0|118.0|1.0|0.0|22.0
+Jalen Tolbert|WR|MIA|18.0|0.0|0.0|0.0|0.0|0.0|13.0|152.0|1.0|0.0|21.2
+Kyle Williams|WR|NE|18.0|0.0|0.0|0.0|4.0|0.0|10.0|148.0|1.0|0.0|21.2
+Jalen Royals|WR|KC|18.0|0.0|0.0|0.0|6.0|0.0|13.0|143.0|1.0|0.0|20.9
+Joshua Palmer|WR|BUF|18.0|0.0|0.0|0.0|0.0|0.0|12.0|146.0|1.0|0.0|20.6
+Xavier Hutchinson|WR|HOU|18.0|0.0|0.0|0.0|0.0|0.0|12.0|145.0|1.0|0.0|20.5
+Kevin Coleman|WR|MIA|18.0|0.0|0.0|0.0|0.0|0.0|12.0|144.0|1.0|0.0|20.4
+Jimmy Horn|WR|CAR|18.0|0.0|0.0|0.0|18.0|0.0|10.0|124.0|1.0|0.0|20.2
+Colbie Young|WR|CIN|18.0|0.0|0.0|0.0|0.0|0.0|11.0|140.0|1.0|0.0|20.0
+Devontez Walker|WR|BAL|18.0|0.0|0.0|0.0|6.0|0.0|10.0|133.0|1.0|0.0|19.9
+Nick Westbrook-Ikhine|WR|IND|18.0|0.0|0.0|0.0|0.0|0.0|10.0|135.0|1.0|0.0|19.5
+Isaiah Williams|WR|NYJ|18.0|0.0|0.0|0.0|18.0|0.0|12.0|135.0|1.0|1.0|19.3
+Aaron Anderson|WR||18.0|0.0|0.0|0.0|0.0|0.0|11.0|132.0|1.0|0.0|19.2
+Tai Felton|WR|MIN|18.0|0.0|0.0|0.0|6.0|0.0|10.0|126.0|1.0|0.0|19.2
+Eric McAlister|WR||18.0|0.0|0.0|0.0|0.0|0.0|11.0|131.0|1.0|0.0|19.1
+Marquez Valdes-Scantling|WR|DAL|18.0|0.0|0.0|0.0|6.0|0.0|8.0|123.0|1.0|0.0|18.9
+Brandin Cooks|WR||18.0|0.0|0.0|0.0|0.0|0.0|10.0|128.0|1.0|0.0|18.8
+Kalif Raymond|WR|CHI|18.0|0.0|0.0|0.0|11.0|0.0|9.0|116.0|1.0|0.0|18.7
+Eric Rivers|WR|TB|18.0|0.0|0.0|0.0|0.0|0.0|11.0|124.0|1.0|0.0|18.4
+Odell Beckham|WR|NYG|18.0|0.0|0.0|0.0|0.0|0.0|10.0|120.0|1.0|0.0|18.0
+Jermaine Burton|WR||18.0|0.0|0.0|0.0|6.0|0.0|8.0|114.0|1.0|0.0|18.0
+David Sills|WR|TB|18.0|0.0|0.0|0.0|6.0|0.0|9.0|113.0|1.0|0.0|17.9
+Roman Wilson|WR|PIT|18.0|0.0|0.0|0.0|0.0|0.0|9.0|118.0|1.0|0.0|17.8
+Tyler Lockett|WR||18.0|0.0|0.0|0.0|0.0|0.0|11.0|113.0|1.0|0.0|17.3
+Reggie Virgil|WR|ARI|18.0|0.0|0.0|0.0|0.0|0.0|9.0|111.0|1.0|0.0|17.1
+Xavier Smith|WR|LAR|18.0|0.0|0.0|0.0|16.0|0.0|7.0|95.0|1.0|0.0|17.1
+Jahdae Walker|WR|CHI|18.0|0.0|0.0|0.0|0.0|0.0|9.0|109.0|1.0|0.0|16.9
+Lil'Jordan Humphrey|WR|DEN|18.0|0.0|0.0|0.0|0.0|0.0|8.0|100.0|1.0|0.0|16.0
+Deion Burks|WR|IND|18.0|0.0|0.0|0.0|2.0|0.0|8.0|91.0|1.0|0.0|15.3
+Jordan Whittington|WR|LAR|18.0|0.0|0.0|0.0|6.0|0.0|8.0|87.0|1.0|0.0|15.3
+`.trim();
+
+const PROJ = (function(){
+  const byName = new Map(), byDefTeam = new Map();
+  PROJ_RAW.split(String.fromCharCode(10)).forEach(function(line){
+    const c = line.split('|');
+    const rec = {name:c[0], pos:c[1], team:c[2], gp:+c[3],
+      passYd:+c[4], passTd:+c[5], int:+c[6], rushYd:+c[7], rushTd:+c[8],
+      rec:+c[9], recYd:+c[10], recTd:+c[11], fum:+c[12], sleeperPts:+c[13]};
+    if(rec.pos==='DEF') byDefTeam.set(rec.team, rec);
+    else byName.set(normName(rec.name)+'|'+rec.pos, rec);
+  });
+  return {byName:byName, byDefTeam:byDefTeam};
+})();
+
+/* Each league's real scoring, read from its own settings page (Sleeper's came
+   straight from its API). `passYdPer` is yards per point. */
+const SCORING = {
+  espn10:   {passYdPer:25, passTd:4, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-2},
+  cbs12:    {passYdPer:25, passTd:6, int:-2, rushYdPer:10, rushTd:6, ppr:0, recYdPer:10, recTd:6, fum:-1,
+             caveat:'Per-game passing-yardage and long-TD bonuses are not in these numbers — '+
+                    'they cannot be derived from season totals. Real quarterback value here is '+
+                    'HIGHER than shown, so treat QB projections as a floor.'},
+  mfl12:    {passYdPer:25, passTd:6, int:-1, rushYdPer:10, rushTd:6, ppr:1, recYdPer:10, recTd:6, fum:-1,
+             caveat:'Touchdowns in this league scale 6–9 points with distance; these use a flat 6, '+
+                    'so big-play scorers are worth slightly more than shown.'},
+  sleeper12:{passYdPer:25, passTd:4, int:-1, rushYdPer:10, rushTd:6, ppr:1, recYdPer:10, recTd:6, fum:-2}
+};
+
+const LEAGUES = {
+  espn10:{ key:"espn10", label:"ESPN — My 2026 League", host:"ESPN",
+    teams:10, rounds:15, scoring:"Standard (non-PPR)", raw:ADP_STD,
+    lineup:[["QB",1],["RB",2],["WR",2],["TE",1],["FLEX",1],["PK",1],["DEF",1]],
+    need:{QB:1,RB:2,WR:2,TE:1,PK:1,DEF:1},
+    aiNeed:{QB:1,RB:2,WR:2,TE:1,PK:1,DEF:1},
+    drop:[], source:"1,420 non-PPR mocks, Aug 9–16 2026" },
+
+  cbs12:{ key:"cbs12", label:"CBS — Chewey's Fantasy League", host:"CBS",
+    teams:12, rounds:16, scoring:"Standard, 6-pt pass TD", raw:ADP_STD,
+    lineup:[["QB",1],["RB",2],["WR",2],["TE",1],["PK",1],["DEF",1]],
+    need:{QB:2,RB:2,WR:2,TE:2,PK:2,DEF:2},
+    aiNeed:{QB:2,RB:2,WR:2,TE:1,PK:1,DEF:1},
+    drop:[], source:"1,420 non-PPR mocks, Aug 9–16 2026" },
+
+  mfl12:{ key:"mfl12", label:"MFL — SWFFL", host:"MyFantasyLeague",
+    teams:12, rounds:12, scoring:"PPR, distance-scaled TDs", raw:ADP_PPR,
+    lineup:[["QB",1],["RB",2],["WR",2],["FLEX",1],["PK",1],["DEF",1]],
+    need:{QB:1,RB:2,WR:2,TE:0,PK:1,DEF:1},
+    aiNeed:{QB:1,RB:2,WR:2,TE:0,PK:1,DEF:1},
+    drop:[], source:"6,565 PPR mocks, Aug 9–16 2026" },
+
+  sleeper12:{ key:"sleeper12", label:"Sleeper — PL/Siena JV", host:"Sleeper",
+    teams:12, rounds:14, scoring:"PPR superflex (2QB)", raw:ADP_2QB,
+    lineup:[["QB",1],["RB",2],["WR",3],["TE",1],["FLEX",1],["SFLEX",1]],
+    need:{QB:2,RB:2,WR:3,TE:1,PK:0,DEF:0},
+    aiNeed:{QB:2,RB:2,WR:3,TE:1,PK:0,DEF:0},
+    drop:["PK","DEF"], source:"3,993 2QB mocks, Jul 17–Aug 16 2026",
+    draftId:"1389704038232121345" }
+};
+
+const BYES = {KC:5,CAR:5, MIA:6,CIN:6,DET:6,MIN:6, BUF:7,LAC:7,WAS:7,JAX:7,
+  NYG:8,NO:8,SF:8,HOU:8, TEN:9,PIT:9, DEN:10,PHI:10,CHI:10,TB:10,
+  NE:11,CLE:11,SEA:11,GB:11,ATL:11,LAR:11, IND:13,NYJ:13,LV:13,BAL:13, DAL:14,ARI:14};
+
+/* ESPN 2026 sleepers / breakouts / busts. A name can hold two tags — the panel splits. */
+const INTEL = {
+  "Tyler Shough":["sleeper","Closed his rookie year with six straight 17+ point games; New Orleans added weapons around him."],
+  "Justin Herbert":["sleeper","Free at QB13 cost — the flattest part of a very flat quarterback board."],
+  "Brock Purdy":["sleeper","Panel sleeper; SF passing volume at an QB9 price."],
+  "Jadarian Price":["sleeper|bust","Split decision — listed as both a sleeper and a breakout, and as a bust by Fulghum. High variance."],
+  "Travis Etienne Jr.":["sleeper|bust","The most divided player on the board: sleeper to some, bust to others, after the move to New Orleans."],
+  "Cam Skattebo":["sleeper","Sleeper at RB17; workload is the question, not talent."],
+  "Kyle Monangai":["sleeper","Backfield in Chicago is unsettled and he's going at pick 110."],
+  "Jonathon Brooks":["sleeper","Cleared for team activities after two ACL tears. Explosive three-down skill set if the knee holds."],
+  "Kenny Gainwell":["sleeper","Averaged 13.3 touches and 17.8 fantasy points per game from Week 8 on in 2025."],
+  "Keaton Mitchell":["sleeper","Deep-league speed flier at pick 160."],
+  "Matthew Golden":["sleeper","Named by multiple panelists; Green Bay's target share is open."],
+  "Wan'Dale Robinson":["sleeper","PPR volume play — the target floor is the appeal."],
+  "Michael Pittman Jr.":["sleeper","Moved to Pittsburgh; going as WR35 despite a defined role."],
+  "Jalen McMillan":["sleeper","Tampa's third receiver with Evans gone to San Francisco."],
+  "Jordyn Tyson":["sleeper","Rookie sleeper in New Orleans, drafted around pick 92."],
+  "Carnell Tate":["sleeper","Called the most pro-ready prospect in the 2026 draft class — pristine route running."],
+  "Isaiah Likely":["sleeper","Multiple panelists; now in New York with a clear path to snaps."],
+  "George Kittle":["sleeper","Cheap at TE10 for a player who's been a top-five tight end when healthy."],
+  "Alec Pierce":["sleeper","Finished second in the NFL at 21.3 yards per reception. Rehabbing an ankle in camp, which is why he's slipped."],
+  "Omarion Hampton":["breakout","Strong dual-threat profile with genuine RB1 upside in an improved offense."],
+  "Bhayshul Tuten":["breakout","Turned seven of 93 touches into touchdowns as a rookie. Elite speed."],
+  "Jeremiyah Love":["breakout","Third overall pick. The last nine backs drafted in the top 12 all finished top 12 in fantasy."],
+  "Ashton Jeanty":["breakout","Raiders' surrounding infrastructure is dramatically improved from his rookie year."],
+  "Emeka Egbuka":["breakout","Detailed route runner poised to become Tampa's top target with Evans gone."],
+  "Luther Burden III":["breakout","150 vacated targets in Chicago and a yards-per-route-run figure near all-time highs."],
+  "Jayden Higgins":["breakout","Six touchdowns as a rookie on limited opportunity."],
+  "Josh Jacobs":["bust","Twenty-eight years old with 2,109 career touches, and the efficiency slipped last season."],
+  "Christian McCaffrey":["bust","Coming off a 450-touch season. The regression case writes itself."],
+  "Derrick Henry":["bust","Age and volume both working against him at an RB9 price."],
+  "Chuba Hubbard":["bust","Brooks' return threatens the workload that justified the pick."],
+  "Kenneth Walker":["bust","New offense in Kansas City, unproven fit, RB12 cost."],
+  "De'Von Achane":["bust","Priced as a top-10 pick; the touch count has to hold up."],
+  "TreVeyon Henderson":["bust","New England backfield is crowded with Stevenson still there."],
+  "Malik Nabers":["bust","Tore the knee in Week 4 and had a follow-up procedure in the spring."],
+  "Rashee Rice":["bust","Going as a top-15 pick with real downside."],
+  "Mike Evans":["bust","Age-33 season after a career-low 12.1 points per game."],
+  "Davante Adams":["bust","Regression concerns at an every-week price."],
+  "Jaylen Waddle":["bust","New team, unsettled target share in Denver."],
+  "Chris Olave":["bust","Priced as WR11 with an injury history that hasn't gone away."],
+  "Trey McBride":["bust","Named by multiple panelists — and he's the TE1 by ADP."],
+  "Sam LaPorta":["bust","Detroit's target distribution keeps shifting away from him."],
+  "Tucker Kraft":["bust","Projected to regress from last year's usage."],
+  "Kyle Pitts Sr.":["bust","The annual bet, still unpaid."],
+  "Harold Fannin Jr.":["bust","Defenses will be more prepared for him after the breakout."],
+  "Matthew Stafford":["bust","Extraordinarily likely most of those MVP-season numbers dip."],
+  "Patrick Mahomes":["bust","Expected to regress from recent production levels."],
+  "Drake Maye":["bust","Bust candidate at a QB2 price."],
+  "Jaxson Dart":["bust","Reliability and consistency both open questions."],
+  "Bo Nix":["bust","Projected to underperform his draft position."]
+};
+
+/* ---------- build player objects ---------- */
+let PLAYERS=[], byId=new Map(), byName=new Map(), TIER_SIZE={}, LINEUP=[], NEED={}, AI_NEED={};
+let NORM = new Map();
+let REPLACEMENT = {};
+
+/* Fold the spelling differences between hosts: punctuation, generational
+   suffixes and casing all vary between ESPN, CBS, MFL and Sleeper. */
+function normName(s){
+  return String(s).toLowerCase()
+    .replace(/[.'`,]/g,"")
+    .replace(/\b(jr|sr|ii|iii|iv|v)\b/g,"")
+    .replace(/[^a-z0-9 ]/g," ")
+    .replace(/\s+/g," ").trim();
+}
+
+/* Rebuilds the whole board for a league: parses that league's ADP, ranks and
+   tiers each position, then re-attaches the scouting notes. */
+function buildLeague(key){
+  const L = LEAGUES[key];
+  LINEUP = L.lineup;
+  NEED   = L.need;
+  AI_NEED = L.aiNeed || L.need;
+
+  const drop = L.drop || [];
+  PLAYERS = L.raw.split("\n").map(function(line,i){
+    const parts = line.split("|");
+    return {id:i, name:parts[0], pos:parts[1], team:parts[2],
+            adp:parseFloat(parts[3]), bye:BYES[parts[2]]||null};
+  }).filter(function(p){ return drop.indexOf(p.pos) === -1; });
+  PLAYERS.sort(function(a,b){ return a.adp-b.adp; });
+  PLAYERS.forEach(function(p,i){ p.ovr=i+1; });
+
+  /* Tiers are natural breaks: within a position, cut at the largest gaps between
+     consecutive players. Each gap is divided by sqrt(ADP) first, because a 4-pick
+     gap at ADP 20 separates players far more than the same gap at ADP 140 — without
+     that, every cut lands in the sparse tail and the early rounds collapse into one
+     enormous tier. Tier count scales with how deep the position is. */
+  const byPos = {};
+  PLAYERS.forEach(function(p){ (byPos[p.pos] = byPos[p.pos]||[]).push(p); });
+  Object.keys(byPos).forEach(function(pos){
+    const list = byPos[pos], n = list.length;
+    const k = Math.max(4, Math.min(12, Math.round(n/4.5)));
+    const scored = [];
+    for(let i=1;i<n;i++) scored.push({i:i, v:(list[i].adp-list[i-1].adp)/Math.sqrt(list[i].adp)});
+    scored.sort(function(a,b){ return b.v-a.v; });
+    const cuts = new Set(scored.slice(0,k-1).map(function(x){ return x.i; }));
+    let tier=1;
+    list.forEach(function(p,i){
+      if(cuts.has(i)) tier++;
+      p.posRank=i+1; p.tier=tier; p.tierTop=cuts.has(i)||i===0;
+    });
+  });
+
+  /* how big each tier was before anyone drafted — a tier that merely started
+     small isn't news; a tier being eaten is */
+  TIER_SIZE = {};
+  PLAYERS.forEach(function(p){
+    const k2=p.pos+"|"+p.tier; TIER_SIZE[k2]=(TIER_SIZE[k2]||0)+1;
+  });
+
+  NORM = new Map();
+  PLAYERS.forEach(function(p){
+    NORM.set(normName(p.name), p);
+    if(p.pos==="DEF") NORM.set(normName(p.team+" defense"), p);
+  });
+  attachProjections(key);
+  byId   = new Map(PLAYERS.map(function(p){ return [p.id,p]; }));
+  byName = new Map(PLAYERS.map(function(p){ return [p.name,p]; }));
+  PLAYERS.forEach(function(p){
+    const hit = INTEL[p.name];
+    if(hit){ p.tags = hit[0].split("|"); p.note = hit[1]; }
+    else   { p.tags = []; p.note = ""; }
+  });
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const LS = "warroom.v1";
+const state = {
+  tab:"board",
+  filter:"ALL", query:"", hideGone:false, onlyStar:false,
+  star:new Set(), avoid:new Set(),
+  league:"espn10", teams:10, slot:1, rounds:15, sim:true,
+  seed:String(Math.floor(Math.random()*1e9)),  // fixes the AI teams' temperaments
+  picks:[]   // {playerId, team (0-indexed), overall}
+};
+function reseed(){ state.seed = String(Math.floor(Math.random()*1e9)); }
+
+function save(){
+  try{
+    localStorage.setItem(LS, JSON.stringify({
+      league:state.league, slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
+      picks:state.picks, star:[...state.star], avoid:[...state.avoid]
+    }));
+  }catch(e){/* private mode — run without persistence */}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(LS); if(!raw) return;
+    const d = JSON.parse(raw);
+    if(d.league && LEAGUES[d.league]) state.league=d.league;
+    if(d.slot) state.slot=d.slot;
+    // clamp: an older save may hold a round count no longer offered
+    if(d.rounds) state.rounds=Math.max(13, Math.min(16, d.rounds));
+    if(typeof d.sim==="boolean") state.sim=d.sim;
+    if(d.seed) state.seed=d.seed;
+    if(Array.isArray(d.picks)) state.picks=d.picks;
+    if(Array.isArray(d.star)) state.star=new Set(d.star);
+    if(Array.isArray(d.avoid)) state.avoid=new Set(d.avoid);
+  }catch(e){}
+}
+
+/* Score every player under this league's rules, then convert to value over
+   replacement: what he's worth against the player you could get for free at the
+   same position. VORP is the number that makes positions comparable — 250 points
+   from a quarterback is worth less than 200 from a tight end when twelve
+   quarterbacks are startable and three tight ends are. */
+function attachProjections(key){
+  const S = SCORING[key];
+  PLAYERS.forEach(function(p){
+    const r = (p.pos === "DEF")
+      ? PROJ.byDefTeam.get(p.team)
+      : PROJ.byName.get(normName(p.name)+"|"+p.pos);
+    p.projRow = r || null;
+    if(!r){ p.proj = null; return; }
+    if(p.pos === "PK" || p.pos === "DEF"){
+      p.proj = r.sleeperPts;                 // pre-bucketed; use Sleeper's own total
+    } else {
+      p.proj = r.passYd / S.passYdPer + r.passTd * S.passTd + r.int * S.int
+             + r.rushYd / S.rushYdPer + r.rushTd * S.rushTd
+             + r.rec * S.ppr + r.recYd / S.recYdPer + r.recTd * S.recTd
+             + r.fum * S.fum;
+    }
+    p.proj = Math.round(p.proj * 10) / 10;
+  });
+
+  /* Replacement level: the last player at each position who would still be
+     starting somewhere in this league, plus a slice of the flex. */
+  const flexShare = {RB:0.5, WR:0.5, TE:0.25};
+  REPLACEMENT = {};
+  ["QB","RB","WR","TE","PK","DEF"].forEach(function(pos){
+    const req = NEED[pos] || 0;
+    if(!req){ REPLACEMENT[pos] = null; return; }
+    const pool = PLAYERS.filter(function(p){ return p.pos===pos && p.proj!==null; })
+                        .sort(function(a,b){ return b.proj-a.proj; });
+    if(!pool.length){ REPLACEMENT[pos] = null; return; }
+    const idx = Math.min(pool.length-1,
+      Math.max(0, Math.round(state.teams * (req + (flexShare[pos]||0))) - 1));
+    REPLACEMENT[pos] = pool[idx].proj;
+  });
+
+  PLAYERS.forEach(function(p){
+    const base = REPLACEMENT[p.pos];
+    p.vorp = (p.proj===null || base===null || base===undefined)
+      ? null : Math.round((p.proj - base) * 10) / 10;
+  });
+}
+
+/* ---------- draft helpers ---------- */
+const teamOnClock = ov => {
+  const r = Math.floor(ov / state.teams);        // 0-indexed round
+  const i = ov % state.teams;
+  return (r % 2 === 0) ? i : (state.teams - 1 - i);   // snake
+};
+const roundOf = ov => Math.floor(ov/state.teams)+1;
+const pickInRound = ov => (ov % state.teams)+1;
+/* never promise more picks than there are players on the board */
+const totalPicks = () => Math.min(state.teams * state.rounds, PLAYERS.length);
+const takenIds = () => new Set(state.picks.map(p=>p.playerId));
+const available = () => { const t=takenIds(); return PLAYERS.filter(p=>!t.has(p.id)); };
+const myIdx = () => state.slot-1;
+const rosterOf = t => state.picks.filter(p=>p.team===t).map(p=>byId.get(p.playerId));
+
+function nextMyPick(){
+  for(let ov=state.picks.length; ov<totalPicks(); ov++){
+    if(teamOnClock(ov)===myIdx()) return ov;
+  }
+  return null;
+}
+
+/* ---------- AI autodraft ---------- */
+
+/* Each AI team gets its own temperament, derived from the draft seed so it stays
+   stable across re-renders. Without this every team wants its quarterback in the
+   same round and the sim produces an absurd seven-QB run; real rooms stagger. */
+const NEUTRAL = {qbRound:8, teRound:7, rbBias:1};
+function hash32(s){
+  let h=2166136261;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
+  return (h>>>0);
+}
+function teamStyle(t){
+  if(t===myIdx()) return NEUTRAL;
+  const h = hash32(state.seed+"|"+t);
+  return {
+    qbRound: 5 + (h % 9),            // wants a QB somewhere in rounds 5–13
+    teRound: 4 + ((h>>>4) % 9),      // and a TE in rounds 4–12
+    rbBias : 0.85 + ((h>>>8) % 9)/20 // some rooms are backfield-hungry, some aren't
+  };
+}
+
+function needScore(roster, pos, round, style, reqs){
+  style = style || NEUTRAL;
+  reqs  = reqs || NEED;
+  const n = roster.filter(p=>p.pos===pos).length;
+  const req = reqs[pos] === undefined ? 0 : reqs[pos];
+  if(pos==="PK"||pos==="DEF"){
+    if(req===0) return 0;                          // superflex league uses neither
+    // hold off until there's just enough draft left to fill the requirement
+    if(round < state.rounds-(req+1)) return 0;
+    return n<req ? 4.0 : 0;
+  }
+  // appetite ramps in over four rounds rather than switching on, so the room
+  // doesn't all reach for the same position in the same round
+  const ramp = (from,lo,hi) => lo + (hi-lo)*Math.max(0,Math.min(1,(round-from+2)/4));
+  const late = round >= state.rounds-4;   // running out of draft; stop being clever
+  if(pos==="QB"){
+    if(req===0) return 0;
+    // superflex: a second quarterback is a starter, not a luxury — no waiting game
+    if(req>=2) return n<req ? 1.55 : (n<req+1 ? 0.15 : 0);
+    return n===0 ? (late?3.2:ramp(style.qbRound,0.45,1.7)) : (n===1 ? 0.12 : 0);
+  }
+  if(pos==="TE"){
+    if(req===0) return n===0 ? 0.45 : 0;           // MFL: tight end is flex-only
+    if(n<req) return late ? 3.2 : (n===0 ? ramp(style.teRound,0.55,1.7) : 1.5);
+    return n<req+1 ? 0.15 : 0;
+  }
+  const bias = (pos==="RB") ? style.rbBias : 1;
+  if(n < req) return 1.9*bias;
+  if(n < req+2) return 1.15*bias;
+  return 0.35;
+}
+/* Considers the best few players at EVERY position rather than the top of the overall
+   board — otherwise a kicker is never a candidate and teams finish the draft without one.
+   Reaching is punished by how far ahead of ADP the pick would be, which is what keeps
+   kickers out of round 3 without needing a hard rule. */
+function aiPick(team){
+  const roster = rosterOf(team);
+  const round = roundOf(state.picks.length);
+  const here = state.picks.length + 1;
+  const avail = available();
+  if(!avail.length) return null;
+  const style = teamStyle(team);
+  // what just went off the board — a manager with time left sees a QB run and waits
+  const recent = {};
+  state.picks.slice(-6).forEach(pk=>{
+    const p=byId.get(pk.playerId); recent[p.pos]=(recent[p.pos]||0)+1;
+  });
+  const byPos = {};
+  avail.forEach(p=>(byPos[p.pos] = byPos[p.pos]||[]).push(p));
+  let best=null, bestScore=-1;
+  Object.keys(byPos).forEach(pos=>{
+    let need = needScore(roster,pos,round,style,AI_NEED);
+    if(need<=0) return;
+    if((pos==="QB"||pos==="TE") && round < state.rounds-4)
+      need /= (1 + 0.45*(recent[pos]||0));
+    byPos[pos].slice(0,3).forEach((p,i)=>{
+      const reach = Math.max(0, p.adp - here);
+      const s = need * Math.exp(-i/2.0) * Math.exp(-reach/18) * (0.75 + Math.random()*0.55);
+      if(s>bestScore){ bestScore=s; best=p; }
+    });
+  });
+  return best || avail[0];
+}
+function makePick(playerId){
+  const ov = state.picks.length;
+  if(ov>=totalPicks()) return;
+  state.picks.push({playerId, team:teamOnClock(ov), overall:ov});
+}
+function runSim(){
+  if(!state.sim) return;
+  let guard = 0;
+  while(state.picks.length < totalPicks() && teamOnClock(state.picks.length)!==myIdx() && guard++<400){
+    const p = aiPick(teamOnClock(state.picks.length));
+    if(!p) break;
+    makePick(p.id);
+  }
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/* Surname for the cramped draft-board cells. Naive last-token would render
+   Marvin Harrison Jr. as "Jr." and James Cook III as "III". */
+const SUFFIX = /^(jr|sr|ii|iii|iv|v)\.?$/i;
+function lastName(full){
+  const parts = full.split(" ").filter(w=>!SUFFIX.test(w));
+  if(parts.length<=1) return parts[0]||full;
+  if(/Defense$/.test(full)) return full.replace(/ Defense$/,"");
+  return parts[parts.length-1];
+}
+const POS_LABEL = {DEF:"DST", PK:"K", QB:"QB", RB:"RB", WR:"WR", TE:"TE"};
+const POS_VAR   = {DEF:"def", PK:"k", QB:"qb", RB:"rb", WR:"wr", TE:"te"};
+const posPill = p=>`<span class="pos ${p.pos}">${POS_LABEL[p.pos]}${
+  (p.pos==="PK"||p.pos==="DEF") ? "" : p.posRank}</span>`;
+
+function vorpCell(p){
+  if(p.vorp===null) return '<span class="faint">—</span>';
+  const cls = p.vorp>0 ? "good" : (p.vorp<0 ? "faint" : "muted");
+  return '<span class="'+cls+'">'+(p.vorp>0?"+":"")+p.vorp.toFixed(0)+'</span>';
+}
+
+function tagChips(p){
+  return p.tags.map(t=>`<span class="chip ${t}">${t}</span>`).join(" ");
+}
+
+/* ---------- Big Board ---------- */
+function renderBoard(){
+  const gone = takenIds();
+  const q = state.query.toLowerCase().trim();
+  const rows = PLAYERS.filter(p=>{
+    if(state.filter==="FLEX"){ if(!["RB","WR","TE"].includes(p.pos)) return false; }
+    else if(state.filter!=="ALL" && p.pos!==state.filter) return false;
+    if(state.hideGone && gone.has(p.id)) return false;
+    if(state.onlyStar && !state.star.has(p.id)) return false;
+    if(q && !(p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  $("#boardCount").textContent = `${rows.length} of ${PLAYERS.length}`;
+  $("#boardBody").innerHTML = rows.map(p=>`
+    <tr class="${gone.has(p.id)?"gone":""} ${p.tierTop&&state.filter!=="ALL"?"tier-top":""}" data-id="${p.id}">
+      <td class="stripe ${p.pos}"></td>
+      <td class="num muted">${p.adp.toFixed(1)}</td>
+      <td><span class="pname">${esc(p.name)}</span></td>
+      <td>${posPill(p)}</td>
+      <td class="faint">${p.team}</td>
+      <td class="num faint">${p.bye??"—"}</td>
+      <td class="tiermark">T${p.tier}</td>
+      <td class="num">${p.proj===null?'<span class="faint">—</span>':p.proj.toFixed(0)}</td>
+      <td class="num">${vorpCell(p)}</td>
+      <td>${tagChips(p)}</td>
+      <td style="white-space:nowrap; text-align:right">
+        <button class="iconbtn star ${state.star.has(p.id)?"on":""}" data-star="${p.id}" title="Watchlist">${state.star.has(p.id)?"★":"☆"}</button>
+        <button class="iconbtn avoid ${state.avoid.has(p.id)?"on":""}" data-avoid="${p.id}" title="Do not draft">⊘</button>
+      </td>
+    </tr>`).join("");
+}
+
+/* ---------- Draft ---------- */
+function recommend(){
+  const roster = rosterOf(myIdx());
+  const round = roundOf(state.picks.length);
+  const avail = available();
+  const here = state.picks.length;
+  const nextMine = (()=>{ // my pick after this one, for "will he last?" math
+    for(let ov=here+1; ov<totalPicks(); ov++) if(teamOnClock(ov)===myIdx()) return ov;
+    return null;
+  })();
+
+  /* Walk the best few at EVERY position rather than the top of the overall board.
+     Scanning only the overall leaders means a kicker or defense is never a candidate,
+     which would hand you an illegal lineup in the final rounds. */
+  const byPos = {};
+  avail.forEach(p=>(byPos[p.pos] = byPos[p.pos]||[]).push(p));
+  const cands = [];
+  Object.keys(byPos).forEach(pos=>{
+    const need = needScore(roster,pos,round,NEUTRAL,NEED);
+    if(need<=0) return;
+    byPos[pos].slice(0,4).forEach((p,i)=>{
+      const reach = Math.max(0, p.adp - (here+1));
+      let score = need * Math.exp(-i/2.2) * Math.exp(-reach/22);
+      if(state.star.has(p.id)) score *= 1.35;
+      if(state.avoid.has(p.id)) score *= 0.15;
+      const left = avail.filter(x=>x.pos===p.pos && x.tier===p.tier).length;
+      if(left<=2) score *= 1.25;              // his tier is nearly gone
+      const value = (here+1) - p.adp;         // positive = he's falling to you
+      if(value>8) score *= 1.2;
+      cands.push({p, score, left, value, gone: nextMine!==null && p.adp < nextMine+1});
+    });
+  });
+  return cands.sort((a,b)=>b.score-a.score).slice(0,6);
+}
+
+function renderDraft(){
+  const ov = state.picks.length;
+  const done = ov>=totalPicks();
+  const mine = !done && teamOnClock(ov)===myIdx();
+  const oc = $("#onclock");
+
+  if(done){
+    oc.className="onclock idle";
+    oc.innerHTML = `<div class="big">Draft complete</div>
+      <div class="muted" style="font-size:13px">${state.rounds} rounds, ${totalPicks()} picks. Head to My Team.</div>`;
+  } else if(mine){
+    oc.className="onclock";
+    oc.innerHTML = `<div class="eyebrow">You're on the clock</div>
+      <div class="big">Round ${roundOf(ov)}, Pick ${pickInRound(ov)} <span class="num faint">· #${ov+1} overall</span></div>`;
+  } else {
+    const nm = nextMyPick();
+    oc.className="onclock idle";
+    oc.innerHTML = `<div class="eyebrow">Team ${teamOnClock(ov)+1} on the clock</div>
+      <div class="big">Round ${roundOf(ov)}, Pick ${pickInRound(ov)}</div>
+      <div class="muted" style="font-size:13px">${nm!==null?`Your next pick is #${nm+1} overall — ${nm-ov} away.`:"No picks remaining."}</div>`;
+  }
+
+  // alerts
+  const al=[];
+  if(!done){
+    const last = state.picks.slice(-12).map(x=>byId.get(x.playerId).pos);
+    ["RB","WR","TE","QB"].forEach(pos=>{
+      const n = last.filter(x=>x===pos).length;
+      if(n>=4) al.push(`<div class="alert hot"><b>${pos} run.</b> ${n} of the last ${last.length} picks were ${pos}s. Consider taking the position they're ignoring — unless a tier you need is emptying.</div>`);
+    });
+    const avail = available();
+    ["RB","WR","TE","QB"].forEach(pos=>{
+      const top = avail.find(p=>p.pos===pos);
+      if(!top) return;
+      const rest = avail.filter(p=>p.pos===pos && p.tier===top.tier);
+      const started = TIER_SIZE[pos+"|"+top.tier] || rest.length;
+      // only when the tier is actually being eaten — not when it was small to begin with
+      if(rest.length<=2 && rest.length<started){
+        al.push(`<div class="alert"><b>${pos} tier ${top.tier} is down to ${rest.length}.</b> ${
+          rest.map(p=>esc(p.name)).join(", ")} — then the board steps down.</div>`);
+      }
+    });
+  }
+  $("#alerts").innerHTML = al.join("");
+
+  // recommendations, or a free search over everyone still available
+  const dq = ($("#dsearch").value||"").toLowerCase().trim();
+  const label = done ? "Best available"
+    : mine ? "Best available" : `Record pick for Team ${teamOnClock(ov)+1}`;
+  $("#recsTitle").textContent = dq ? "Search results" : label;
+
+  const rowFor = (p, i, extra) => `<div class="rec">
+      <span class="rank num">${i}</span>
+      ${posPill(p)}
+      <div style="flex:1; min-width:0">
+        <div class="pname">${esc(p.name)} <span class="faint num" style="font-weight:400">${p.team}${p.bye?" · bye "+p.bye:""}</span></div>
+        <div class="why">${extra}</div>
+      </div>
+      <button class="btn sm primary" data-draft="${p.id}">Draft</button>
+    </div>`;
+
+  if(done){
+    $("#recs").innerHTML = `<p class="muted" style="padding:8px 0">Draft is complete.</p>`;
+  } else if(dq){
+    const hits = available().filter(p=>
+      p.name.toLowerCase().includes(dq) || p.team.toLowerCase().includes(dq)).slice(0,12);
+    $("#recs").innerHTML = hits.length
+      ? hits.map((p,i)=>rowFor(p, i+1, `ADP ${p.adp.toFixed(1)} · ${p.pos} tier ${p.tier}`)).join("")
+      : `<p class="muted" style="padding:8px 0">No available player matches "${esc(dq)}".</p>`;
+  } else {
+    $("#recs").innerHTML = recommend().map((r,i)=>{
+      const p=r.p;
+      const bits=[];
+      if(r.value>6) bits.push(`<span class="good">falling — ADP ${p.adp.toFixed(1)}, you're at ${ov+1}</span>`);
+      else if(r.value<-8) bits.push(`<span class="bad">reach — ADP ${p.adp.toFixed(1)}</span>`);
+      bits.push(`${r.left} left in ${p.pos} tier ${p.tier}`);
+      if(state.star.has(p.id)) bits.push(`<span class="starred">on your watchlist</span>`);
+      if(p.tags.length) bits.push(p.tags.join(" / "));
+      return rowFor(p, i+1, bits.join(" · "));
+    }).join("");
+  }
+
+  // runs panel
+  const last12 = state.picks.slice(-12).map(x=>byId.get(x.playerId).pos);
+  const counts = {};
+  last12.forEach(p=>counts[p]=(counts[p]||0)+1);
+  const order = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  $("#runs").innerHTML = last12.length===0 ? `<p class="muted" style="margin:0; font-size:13px">No picks yet.</p>` :
+    order.map(pos=>{
+      const pct = Math.round(counts[pos]/last12.length*100);
+      return `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px">
+        <span class="pos ${pos}">${POS_LABEL[pos]}</span>
+        <div style="flex:1; height:6px; background:var(--surface-3); border-radius:99px; overflow:hidden">
+          <div style="width:${pct}%; height:100%; background:var(--${POS_VAR[pos]})"></div>
+        </div>
+        <span class="num faint" style="font-size:11px">${counts[pos]}</span>
+      </div>`;
+    }).join("");
+
+  // recent picks
+  $("#picks").innerHTML = state.picks.slice().reverse().slice(0,40).map(pk=>{
+    const p=byId.get(pk.playerId);
+    return `<div class="pk ${pk.team===myIdx()?"mine":""}">
+      <span class="slot">${roundOf(pk.overall)}.${String(pickInRound(pk.overall)).padStart(2,"0")}</span>
+      ${posPill(p)}
+      <span style="flex:1; min-width:0">${esc(p.name)}</span>
+      <span class="faint" style="font-size:11px">${pk.team===myIdx()?"you":"T"+(pk.team+1)}</span>
+    </div>`;
+  }).join("") || `<p class="muted" style="margin:0; font-size:13px">No picks yet.</p>`;
+
+  renderDBoard();
+  $("#boardMeta").textContent = `${state.picks.length} / ${totalPicks()} picks`;
+}
+
+function renderDBoard(){
+  const t=state.teams, r=state.rounds;
+  let head = "<thead><tr><th>Rd</th>";
+  for(let i=0;i<t;i++) head += `<th>${i===myIdx()?"YOU":"T"+(i+1)}</th>`;
+  head += "</tr></thead><tbody>";
+  let body="";
+  for(let rd=0; rd<r; rd++){
+    body += `<tr><th>${rd+1}</th>`;
+    for(let col=0; col<t; col++){
+      // which overall pick belongs to team `col` in round rd
+      const ov = rd*t + ((rd%2===0) ? col : (t-1-col));
+      const pk = state.picks[ov];
+      const teamHere = teamOnClock(ov);
+      const p = pk ? byId.get(pk.playerId) : null;
+      body += `<td class="${teamHere===myIdx()?"mine":""}">${
+        p ? `${esc(lastName(p.name))}<div class="mini">${POS_LABEL[p.pos]} ${p.team}</div>` : ""
+      }</td>`;
+    }
+    body += "</tr>";
+  }
+  $("#dboard").innerHTML = head+body+"</tbody>";
+}
+
+/* ---------- My Team ---------- */
+function renderTeam(){
+  const roster = rosterOf(myIdx());
+  if(!roster.length){
+    $("#teamOut").innerHTML = `<div class="card"><div class="card-b"><p class="muted" style="margin:0">
+      No picks yet. Head to the Draft tab and start a draft — this fills in automatically.</p></div></div>`;
+    return;
+  }
+  const pool = roster.slice().sort((a,b)=>a.adp-b.adp);
+  const used=new Set(); const starters=[];
+  LINEUP.forEach(([slotPos,count])=>{
+    for(let i=0;i<count;i++){
+      const pick = pool.find(p=>!used.has(p.id) && (
+        slotPos==="FLEX"  ? ["RB","WR","TE"].includes(p.pos) :
+        slotPos==="SFLEX" ? ["QB","RB","WR","TE"].includes(p.pos) :
+        p.pos===slotPos));
+      if(pick) used.add(pick.id);
+      starters.push({slot:slotPos, p:pick||null});
+    }
+  });
+  const bench = pool.filter(p=>!used.has(p.id));
+
+  // bye collisions among starters
+  const byeMap={};
+  starters.forEach(s=>{ if(s.p&&s.p.bye) (byeMap[s.p.bye]=byeMap[s.p.bye]||[]).push(s.p); });
+  const clashes = Object.entries(byeMap).filter(([w,list])=>list.length>=3);
+
+  // needs
+  const needs=[];
+  LINEUP.forEach(([slotPos])=>{
+    if(slotPos==="FLEX"||slotPos==="SFLEX") return;
+    const have = roster.filter(p=>p.pos===slotPos).length;
+    if(have < NEED[slotPos]) needs.push(`${NEED[slotPos]-have} more ${POS_LABEL[slotPos]}`);
+  });
+
+  const row = s=>s.p
+    ? `<div class="slotrow"><span class="lbl">${s.slot==="PK"?"K":s.slot==="DEF"?"DST":s.slot==="SFLEX"?"SFLX":s.slot}</span>
+        ${posPill(s.p)}
+        <span style="flex:1; min-width:0"><span class="pname">${esc(s.p.name)}</span>
+        <span class="faint" style="font-size:11.5px"> ${s.p.team}</span></span>
+        <span class="num faint" style="font-size:11.5px">bye ${s.p.bye??"—"}</span></div>`
+    : `<div class="slotrow empty"><span class="lbl">${s.slot==="PK"?"K":s.slot==="DEF"?"DST":s.slot==="SFLEX"?"SFLX":s.slot}</span><span>empty</span></div>`;
+
+  $("#teamOut").innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h3>Starting lineup</h3><span class="eyebrow">${roster.length} drafted</span></div>
+      <div class="card-b"><div class="roster">${starters.map(row).join("")}</div></div>
+    </div>
+    ${clashes.length? `<div class="alert hot" style="margin-bottom:16px"><b>Bye stack.</b>
+      ${clashes.map(([w,l])=>`Week ${w}: ${l.map(p=>esc(p.name)).join(", ")}`).join(" · ")}.
+      Worth a late-round handcuff, not worth reaching for.</div>`:""}
+    ${needs.length? `<div class="alert" style="margin-bottom:16px"><b>Still needed:</b> ${needs.join(", ")}.</div>`:""}
+    ${offBoardNote()}
+    <div class="card">
+      <div class="card-h"><h3>Bench</h3><span class="eyebrow">${bench.length}</span></div>
+      <div class="card-b"><div class="roster">${
+        bench.length? bench.map(p=>`<div class="slotrow"><span class="lbl">BN</span>${posPill(p)}
+          <span style="flex:1; min-width:0"><span class="pname">${esc(p.name)}</span>
+          <span class="faint" style="font-size:11.5px"> ${p.team}</span></span>
+          <span class="num faint" style="font-size:11.5px">bye ${p.bye??"—"}</span></div>`).join("")
+        : `<p class="muted" style="margin:0">Empty.</p>`}</div></div>
+    </div>`;
+}
+
+/* Some leagues require more of a position than the top-200 ADP board even ranks —
+   CBS mandates two kickers and two defenses per team, which is 24 of each across
+   twelve teams. Say so plainly rather than quietly under-counting. */
+function offBoardNote(){
+  const short = [];
+  Object.keys(NEED).forEach(function(pos){
+    const req = NEED[pos];
+    if(!req) return;
+    const onBoard = PLAYERS.filter(function(p){ return p.pos===pos; }).length;
+    if(req*state.teams > onBoard) short.push({pos:pos, need:req*state.teams, have:onBoard});
+  });
+  if(!short.length) return "";
+  return '<div class="alert" style="margin-bottom:16px"><div><b>Some of these picks come from off the board.</b> ' +
+    'Your league needs ' + short.map(function(s){
+      return s.need+" "+POS_LABEL[s.pos]+" across "+state.teams+" teams";
+    }).join(", ") + ', but the top-200 ADP board only ranks ' +
+    short.map(function(s){ return s.have+" "+POS_LABEL[s.pos]; }).join(", ") +
+    '. Budget the roster spots — but past that point any starter will do, and no ranking ' +
+    'is going to tell you which. Take them last.</div></div>';
+}
+
+/* ---------- Depth Charts ---------- */
+function renderDepth(){
+  const q = ($("#dq").value||"").toLowerCase().trim();
+  const teams = {};
+  PLAYERS.forEach(p=>{
+    if(p.pos==="PK"||p.pos==="DEF") return;
+    (teams[p.team]=teams[p.team]||[]).push(p);
+  });
+  const names = Object.keys(teams).filter(t=>!q||t.toLowerCase().includes(q)).sort();
+  $("#depthOut").innerHTML = names.map(t=>{
+    const list = teams[t].slice().sort((a,b)=>a.adp-b.adp);
+    const grp = pos=>{
+      const g = list.filter(p=>p.pos===pos);
+      if(!g.length) return "";
+      return `<div class="dgrp"><div class="glbl">${pos}</div>${
+        g.map((p,i)=>`<div class="dline ${i===0?"one":""}">
+          <span class="ord">${pos}${i+1}</span>
+          <span style="flex:1; min-width:0">${esc(p.name)}</span>
+          <span class="num faint">${p.adp.toFixed(0)}</span></div>`).join("")}</div>`;
+    };
+    return `<div class="tcard">
+      <h4>${t}<span class="bye">bye ${BYES[t]??"—"}</span></h4>
+      ${grp("QB")}${grp("RB")}${grp("WR")}${grp("TE")}
+    </div>`;
+  }).join("");
+}
+
+/* ---------- Intel ---------- */
+let intelTag="ALL";
+function renderIntel(){
+  const rows = PLAYERS.filter(p=>p.tags.length && (intelTag==="ALL"||p.tags.includes(intelTag)));
+  $("#intelBody").innerHTML = rows.map(p=>`
+    <tr>
+      <td class="stripe ${p.pos}"></td>
+      <td class="num muted">${p.adp.toFixed(1)}</td>
+      <td><span class="pname">${esc(p.name)}</span></td>
+      <td>${posPill(p)}</td>
+      <td class="faint">${p.team}</td>
+      <td>${tagChips(p)}</td>
+      <td class="muted" style="font-size:12.5px; line-height:1.4">${esc(p.note)}</td>
+    </tr>`).join("");
+}
+
+/* ---------- Plan cliffs ---------- */
+function renderCliffs(){
+  const out=[];
+  ["RB","WR","TE","QB"].forEach(pos=>{
+    const list = PLAYERS.filter(p=>p.pos===pos);
+    let biggest=null;
+    for(let i=1;i<Math.min(list.length,22);i++){
+      const gap = list[i].adp - list[i-1].adp;
+      if(!biggest || gap>biggest.gap) biggest={gap, before:list[i-1], after:list[i]};
+    }
+    if(biggest) out.push(`<div class="cliff">
+      <span class="at">${pos} · ${biggest.before.adp.toFixed(0)}</span>
+      <span class="muted">After <strong>${esc(biggest.before.name)}</strong> (${pos}${biggest.before.posRank})
+      the board drops ${biggest.gap.toFixed(1)} picks to ${esc(biggest.after.name)}.
+      That's the widest gap inside the position's top 22.</span></div>`);
+  });
+  $("#cliffOut").innerHTML = out.join("");
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+function renderAll(){
+  renderBoard();
+  if(state.tab==="draft") renderDraft();
+  if(state.tab==="team") renderTeam();
+  if(state.tab==="depth") renderDepth();
+  if(state.tab==="intel") renderIntel();
+}
+
+document.querySelectorAll(".tab").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected", x===b));
+    document.querySelectorAll(".panel").forEach(p=>p.hidden=true);
+    state.tab = b.dataset.p;
+    $("#p-"+state.tab).hidden=false;
+    renderAll();
+    window.scrollTo({top:0, behavior:"instant"});
+  });
+});
+
+$("#q").addEventListener("input",e=>{state.query=e.target.value; renderBoard();});
+$("#hideGone").addEventListener("change",e=>{state.hideGone=e.target.checked; renderBoard();});
+$("#onlyStar").addEventListener("change",e=>{state.onlyStar=e.target.checked; renderBoard();});
+$("#posfilter").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  state.filter=b.dataset.f;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute("aria-pressed", x===b));
+  renderBoard();
+});
+$("#tagfilter").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  intelTag=b.dataset.t;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute("aria-pressed", x===b));
+  renderIntel();
+});
+$("#dq").addEventListener("input",renderDepth);
+
+$("#boardBody").addEventListener("click",e=>{
+  const s=e.target.closest("[data-star]"), a=e.target.closest("[data-avoid]");
+  if(s){ const id=+s.dataset.star; state.star.has(id)?state.star.delete(id):state.star.add(id); save(); renderBoard(); }
+  if(a){ const id=+a.dataset.avoid; state.avoid.has(id)?state.avoid.delete(id):state.avoid.add(id); save(); renderBoard(); }
+});
+
+$("#recs").addEventListener("click",e=>{
+  const b=e.target.closest("[data-draft]"); if(!b) return;
+  makePick(+b.dataset.draft);
+  $("#dsearch").value="";          // clear the search so the next pick starts fresh
+  runSim(); save(); renderAll();
+});
+$("#dsearch").addEventListener("input",renderDraft);
+
+/* Import a draft in progress. Sleeper exposes its picks as public JSON, so the
+   whole board can be reproduced from one paste; every other host gets the
+   plain-name path. Picks are applied in order to whoever is on the clock. */
+function parseImport(text){
+  const t = text.trim();
+  if(!t) return {names:[], err:"Nothing pasted."};
+  if(t[0]==="[" || t[0]==="{"){
+    let data;
+    try{ data = JSON.parse(t); }
+    catch(e){ return {names:[], err:"That isn't valid JSON. Paste the raw response, or one name per line."}; }
+    const arr = Array.isArray(data) ? data : (data.picks || data.draft_picks || null);
+    if(!Array.isArray(arr)) return {names:[], err:"JSON parsed, but no list of picks in it."};
+    if(!arr.length) return {names:[], err:"That draft has no picks yet."};
+    if(arr[0] && arr[0].metadata && arr[0].metadata.first_name!==undefined){
+      const sorted = arr.slice().sort(function(a,b){ return (a.pick_no||0)-(b.pick_no||0); });
+      return {names: sorted.map(function(p){
+        return ((p.metadata.first_name||"")+" "+(p.metadata.last_name||"")).trim();
+      }), err:null, src:"Sleeper"};
+    }
+    return {names:[], err:"Unrecognised JSON shape — try pasting player names instead."};
+  }
+  return {names: t.split(/[\n,;]+/).map(function(s){ return s.trim(); }).filter(Boolean), err:null};
+}
+
+/* One place where a list of names becomes a draft. The paste box and the
+   one-click hash sync both funnel through here. The incoming list is the whole
+   truth — existing picks are discarded rather than merged, so a re-sync can
+   never double-count or drift out of order. */
+function applyNames(names){
+  state.picks = [];
+  const missed = [];
+  names.forEach(function(nm){
+    if(state.picks.length >= totalPicks()) return;
+    const p = NORM.get(normName(nm));
+    if(!p){ missed.push(nm); return; }
+    if(takenIds().has(p.id)) return;
+    makePick(p.id);
+  });
+  state.sim = false;
+  const box = $("#simOn"); if(box) box.checked = false;
+  save();
+  return {count: state.picks.length, missed: missed};
+}
+
+function importMessage(res, from){
+  return '<span class="good">Imported '+res.count+' picks'+(from?" from "+from:"")+'.</span>' +
+    (res.missed.length ? ' <span class="warn">Not matched: '+esc(res.missed.slice(0,6).join(", ")) +
+      (res.missed.length>6 ? " +"+(res.missed.length-6)+" more" : "") + '</span>' : "");
+}
+
+function runImport(){
+  const parsed = parseImport($("#syncIn").value);
+  const msg = $("#syncMsg");
+  if(parsed.err){ msg.innerHTML = '<span class="bad">'+esc(parsed.err)+'</span>'; return; }
+  msg.innerHTML = importMessage(applyNames(parsed.names), parsed.src);
+  renderAll();
+}
+
+/* The bookmarklet hands the draft over in the URL: #draft=<league>:<name>|<name>|…
+   Reading it on load AND on hashchange means clicking the bookmark a second time
+   updates a tab that's already open, with no reload. */
+function importFromHash(){
+  const m = (location.hash||"").match(/^#draft=([a-z0-9_]+):([\s\S]*)$/i);
+  if(!m) return null;
+  const key = m[1];
+  if(!LEAGUES[key]) return null;
+  let raw;
+  try{ raw = decodeURIComponent(m[2]); }catch(e){ return null; }
+  const names = raw.split("|").map(function(s){ return s.trim(); }).filter(Boolean);
+  if(!names.length) return null;
+  if(state.league !== key) applyLeague(key);
+  const res = applyNames(names);
+  res.league = key;
+  return res;
+}
+
+function showHashResult(res){
+  if(!res) return;
+  const card = $("#syncCard"); if(card) card.open = true;
+  const msg = $("#syncMsg");
+  if(msg) msg.innerHTML = importMessage(res, LEAGUES[res.league].host+" (one-click sync)");
+}
+$("#syncGo").addEventListener("click",runImport);
+$("#bmCopy").addEventListener("click",function(){
+  const f=$("#bmCode"); f.select(); f.setSelectionRange(0,99999);
+  try{ document.execCommand("copy"); this.textContent="Copied"; }
+  catch(e){ this.textContent="Select it and copy"; }
+  setTimeout(function(){ $("#bmCopy").textContent="Copy bookmarklet"; },1600);
+});
+$("#syncWipe").addEventListener("click",function(){
+  $("#syncIn").value=""; $("#syncMsg").textContent="";
+});
+$("#league").addEventListener("change",function(e){
+  applyLeague(e.target.value); reseed(); runSim(); save();
+  renderCliffs(); renderAll();
+});
+
+const slotSel=$("#slot");
+function applyLeague(key){
+  const L = LEAGUES[key];
+  state.league = key;
+  state.teams  = L.teams;
+  state.rounds = L.rounds;
+  buildLeague(key);
+  if(state.slot > L.teams) state.slot = L.teams;
+  slotSel.innerHTML = "";
+  for(let i=1;i<=L.teams;i++){
+    const o=document.createElement("option"); o.value=i; o.textContent=i; slotSel.appendChild(o);
+  }
+  slotSel.value = state.slot;
+  $("#rounds").value = state.rounds;
+  $("#league").value = key;
+  $("#simCount").textContent = L.teams-1;
+  const lw = $("#liveWrap");
+  if(lw) lw.hidden = !(L.draftId && window.LIVE_CAPABLE);
+  $("#bmWrap").hidden = !(L.draftId) || !!window.LIVE_CAPABLE;
+  $("#syncHow").innerHTML = (key==="sleeper12")
+    ? 'Sleeper publishes this draft\'s picks as open JSON. Open ' +
+      '<code>api.sleeper.app/v1/draft/1389704038232121345/picks</code> in a tab, select all, ' +
+      'and paste it here — the whole board rebuilds. Re-paste any time to catch up.'
+    : L.host+' has no public draft feed, so paste player names instead — one per line, ' +
+      'in the order they were taken. Auto-draft turns itself off when you import.';
+  $("#stamp").textContent = L.host+" \u00b7 "+L.teams+"-team \u00b7 "+L.scoring+" \u00b7 "+L.source;
+  $("#foot-src").innerHTML = "ADP: Fantasy Football Calculator (" + L.teams + "-team " + L.scoring +
+    ", " + L.source + "). Sleepers / breakouts / busts: ESPN 2026 panel. Bye weeks: 2026 NFL schedule. " +
+    "Tiers, positional ranks, depth-chart ordering and all draft logic are computed from that ADP \u2014 no projections are used.";
+  document.querySelectorAll(".planblock").forEach(function(b){ b.hidden = (b.dataset.league!==key); });
+  state.picks = [];
+}
+slotSel.addEventListener("change",e=>{ state.slot=+e.target.value; state.picks=[]; reseed(); runSim(); save(); renderAll(); });
+$("#rounds").addEventListener("change",e=>{ state.rounds=+e.target.value; save(); renderAll(); });
+$("#simOn").addEventListener("change",e=>{ state.sim=e.target.checked; save(); if(state.sim) runSim(); renderAll(); });
+$("#undo").addEventListener("click",()=>{
+  if(!state.picks.length) return;
+  // roll back to just before my most recent pick, so undo is meaningful with the sim on
+  if(state.sim){
+    let i=state.picks.length-1;
+    while(i>=0 && state.picks[i].team!==myIdx()) i--;
+    state.picks = state.picks.slice(0, Math.max(i,0));
+  } else state.picks.pop();
+  save(); renderAll();
+});
+// a fresh seed means a genuinely different room, not the same board again
+$("#reset").addEventListener("click",()=>{ state.picks=[]; reseed(); runSim(); save(); renderAll(); });
+
+/* ---------- boot ---------- */
+load();
+const savedPicks = state.picks;
+applyLeague(state.league);
+state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });
+$("#simOn").checked = state.sim;
+const hashRes = importFromHash();
+if(!hashRes && !state.picks.length) runSim();
+renderCliffs();
+$("#p-board").hidden=false;
+renderAll();
+showHashResult(hashRes);
+
+window.addEventListener("hashchange", function(){
+  const res = importFromHash();
+  if(!res) return;
+  renderCliffs(); renderAll(); showHashResult(res);
+});
+</script>
+
+<script>
+window.LIVE_CAPABLE = true;   /* this build can reach the network */
+/* ---------- installed-app plumbing ---------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () { /* offline support is a bonus, not a requirement */ });
+  });
+}
+
+/* ---------- live draft sync ----------
+   The whole reason this app left the artifact sandbox: Sleeper's API is
+   CORS-open, so the page can read the draft itself. Poll while the toggle is on,
+   apply only when the pick count actually changes, and never let a failed
+   request wipe a board that is already correct. */
+var LIVE = { timer: null, lastCount: -1, fails: 0 };
+
+function liveStatus(msg, cls) {
+  var el = document.getElementById("liveMsg");
+  if (el) el.innerHTML = cls ? '<span class="' + cls + '">' + msg + "</span>" : msg;
+}
+
+async function livePoll() {
+  var L = LEAGUES[state.league];
+  if (!L || !L.draftId) return;
+  try {
+    var r = await fetch("https://api.sleeper.app/v1/draft/" + L.draftId + "/picks", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    var j = await r.json();
+    LIVE.fails = 0;
+    if (j.length === LIVE.lastCount) {
+      liveStatus("Up to date — " + j.length + " picks · " + new Date().toLocaleTimeString(), "faint");
+      return;
+    }
+    LIVE.lastCount = j.length;
+    j.sort(function (a, b) { return (a.pick_no || 0) - (b.pick_no || 0); });
+    var names = j.map(function (p) {
+      return ((p.metadata && p.metadata.first_name || "") + " " + (p.metadata && p.metadata.last_name || "")).trim();
+    }).filter(Boolean);
+    if (!names.length) { liveStatus("Connected — draft has not started yet.", "faint"); return; }
+    var res = applyNames(names);
+    renderCliffs(); renderAll();
+    liveStatus("Live — " + res.count + " picks in" +
+      (res.missed.length ? " (" + res.missed.length + " unmatched)" : "") +
+      " · " + new Date().toLocaleTimeString(), "good");
+  } catch (e) {
+    LIVE.fails++;
+    liveStatus("Can't reach Sleeper (attempt " + LIVE.fails + "). Keeping the board you have.", "warn");
+  }
+}
+
+function liveToggle(on) {
+  clearInterval(LIVE.timer); LIVE.timer = null;
+  if (!on) { liveStatus("Live sync off.", "faint"); return; }
+  LIVE.lastCount = -1;
+  liveStatus("Connecting…", "faint");
+  livePoll();
+  LIVE.timer = setInterval(livePoll, 15000);
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  var lw = document.getElementById("liveWrap");
+  if (lw) lw.hidden = !(LEAGUES[state.league] && LEAGUES[state.league].draftId);
+  var bm = document.getElementById("bmWrap"); if (bm) bm.hidden = true;
+  var box = document.getElementById("liveOn");
+  if (box) box.addEventListener("change", function (e) { liveToggle(e.target.checked); });
+});
+</script>
+</body>
+</html>
