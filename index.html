@@ -420,6 +420,13 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
               </label>
               <button class="btn sm" id="draftIdSave">Save</button>
             </div>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap">
+              <label class="fld" style="flex:1; min-width:190px">
+                Draft time
+                <input type="datetime-local" id="draftWhenIn" style="flex:1; min-width:0; font-size:12px">
+              </label>
+              <span id="draftCountdown" style="font-size:12px"></span>
+            </div>
             <p class="faint" style="margin:6px 0 0; font-size:11.5px">
               Stored on this device only. Find it in your Sleeper draft URL.
             </p>
@@ -2136,12 +2143,39 @@ function draftIds(){
   try{ return JSON.parse(localStorage.getItem(DRAFTID_KEY) || "{}") || {}; }
   catch(e){ return {}; }
 }
-function draftIdFor(key){ return (draftIds()[key] || "").trim(); }
+function draftIdFor(key){
+  const v = draftIds()[key];
+  return (typeof v === "string" ? v : (v && v.id) || "").trim();
+}
+function draftWhenFor(key){
+  const v = draftIds()[key];
+  return (v && typeof v === "object" && v.when) ? v.when : "";
+}
+function setDraftWhen(key, when){
+  const all = draftIds();
+  const cur = all[key];
+  const id  = (typeof cur === "string") ? cur : (cur && cur.id) || "";
+  when = String(when || "").trim();
+  if(id || when) all[key] = {id:id, when:when}; else delete all[key];
+  try{ localStorage.setItem(DRAFTID_KEY, JSON.stringify(all)); }catch(e){}
+}
 function setDraftId(key, val){
   const all = draftIds();
   val = String(val || "").trim();
-  if(val) all[key] = val; else delete all[key];
+  const when = draftWhenFor(key);
+  if(val || when) all[key] = {id:val, when:when}; else delete all[key];
   try{ localStorage.setItem(DRAFTID_KEY, JSON.stringify(all)); }catch(e){}
+}
+
+/* How far away is this draft? Drives the countdown and the day-of prompt. */
+function draftCountdown(key){
+  const w = draftWhenFor(key);
+  if(!w) return null;
+  const t = new Date(w).getTime();
+  if(isNaN(t)) return null;
+  const ms = t - Date.now();
+  const hrs = ms / 3600000;
+  return {ms:ms, hours:hrs, days:Math.floor(hrs/24), when:new Date(t)};
 }
 
 /* Fold the spelling differences between hosts: punctuation, generational
@@ -2419,6 +2453,20 @@ function liveAdpFor(row, key){
 }
 
 /* Built at runtime so the published source carries no league identifier. */
+function renderCountdown(key){
+  const el = $("#draftCountdown");
+  if(!el) return;
+  const c = draftCountdown(key);
+  if(!c){ el.innerHTML = '<span class="faint">No draft time saved.</span>'; return; }
+  if(c.ms < -6*3600000){ el.innerHTML = '<span class="faint">Draft has passed.</span>'; return; }
+  if(c.hours <= 6){
+    el.innerHTML = '<span class="good"><strong>Draft is now</strong> — turn on Live sync.</span>';
+    return;
+  }
+  if(c.days < 1){ el.innerHTML = '<span class="warn">Draft in ' + Math.round(c.hours) + ' hours.</span>'; return; }
+  el.innerHTML = '<span class="muted">Draft in ' + c.days + ' day' + (c.days===1?"":"s") + ".</span>";
+}
+
 function refreshBookmarklet(key){
   const field = $("#bmCode");
   if(!field) return;
@@ -3027,6 +3075,36 @@ function renderDBoard(){
 }
 
 /* ---------- My Team ---------- */
+/* Best possible starting lineup for a roster, by season projection. Greedy within
+   each slot is optimal here because the slots are filled in a fixed order and the
+   flex slots come last. Used for the draft grade and the bye-week outlook. */
+function bestLineup(roster){
+  const pool = roster.filter(function(p){ return p.proj !== null; })
+                     .sort(function(a,b){ return b.proj - a.proj; });
+  const used = new Set(), filled = [];
+  LINEUP.forEach(function(pair){
+    for(let i=0;i<pair[1];i++){
+      const slot = pair[0];
+      const pick = pool.find(function(p){ return !used.has(p.id) && slotAccepts(slot, p.pos); });
+      if(pick) used.add(pick.id);
+      filled.push({slot:slot, p:pick || null});
+    }
+  });
+  const pts = filled.reduce(function(a,f){ return a + (f.p ? f.p.proj : 0); }, 0);
+  return {slots:filled, points:Math.round(pts * 10) / 10};
+}
+
+/* Weeks where too many of your starters are idle. */
+function byeOutlook(roster){
+  const line = bestLineup(roster).slots.filter(function(f){ return f.p; }).map(function(f){ return f.p; });
+  const weeks = [];
+  for(let w=1; w<=18; w++){
+    const off = line.filter(function(p){ return p.bye === w; });
+    weeks.push({week:w, off:off.length, who:off.map(function(p){ return p.name; })});
+  }
+  return {weeks:weeks, starters:line.length};
+}
+
 function renderTeam(){
   const roster = rosterOf(myIdx());
   if(!roster.length){
@@ -3079,6 +3157,8 @@ function renderTeam(){
       Worth a late-round handcuff, not worth reaching for.</div>`:""}
     ${needs.length? `<div class="alert" style="margin-bottom:16px"><b>Still needed:</b> ${needs.join(", ")}.</div>`:""}
     ${offBoardNote()}
+    ${draftGrade()}
+    ${byeStrip()}
     <div class="card">
       <div class="card-h"><h3>Bench</h3><span class="eyebrow">${bench.length}</span></div>
       <div class="card-b"><div class="roster">${
@@ -3333,6 +3413,59 @@ function renderWeek(){
         (adds.length ? adds.map(function(a){ return line('FA', a); }).join('')
                      : '<p class="muted" style="margin:0">Board is exhausted.</p>') +
       '</div></div></div>';
+}
+
+/* Where your starters rank against the other rosters in this draft. Only meaningful
+   once the draft is far enough along that everyone has a lineup. */
+function draftGrade(){
+  if(state.picks.length < state.teams * 4) return "";
+  const scores = [];
+  for(let t=0; t<state.teams; t++) scores.push({team:t, pts:bestLineup(rosterOf(t)).points});
+  const sorted = scores.slice().sort(function(a,b){ return b.pts-a.pts; });
+  const mine = scores[myIdx()];
+  const rank = sorted.findIndex(function(s){ return s.team === myIdx(); }) + 1;
+  const best = sorted[0].pts, worst = sorted[sorted.length-1].pts;
+  const median = sorted[Math.floor(sorted.length/2)].pts;
+  const gap = Math.round((mine.pts - median) * 10) / 10;
+  const cls = rank <= Math.ceil(state.teams/3) ? "good" : (rank > state.teams - Math.ceil(state.teams/3) ? "bad" : "muted");
+  return '<div class="card" style="margin-bottom:16px"><div class="card-h">' +
+    "<h3>Draft grade</h3><span class=\"eyebrow\">projected starters</span></div>" +
+    '<div class="card-b"><div style="display:flex; gap:18px; flex-wrap:wrap; align-items:baseline">' +
+      '<div><div class="eyebrow">your starters</div><div style="font-family:var(--display); font-size:26px">' +
+        mine.pts.toFixed(0) + "</div></div>" +
+      '<div><div class="eyebrow">rank</div><div class="' + cls +
+        '" style="font-family:var(--display); font-size:26px">' + rank + " of " + state.teams + "</div></div>" +
+      '<div><div class="eyebrow">vs median</div><div class="' + (gap>=0?"good":"bad") +
+        '" style="font-family:var(--display); font-size:26px">' + (gap>=0?"+":"") + gap.toFixed(0) + "</div></div>" +
+      '<div class="faint" style="font-size:12px; flex:1; min-width:200px">Best roster in the room ' +
+        best.toFixed(0) + ", worst " + worst.toFixed(0) +
+        ". Season projections under this league's scoring — it rates the roster you built, not luck.</div>" +
+    "</div></div></div>";
+}
+
+function byeStrip(){
+  const roster = rosterOf(myIdx());
+  if(roster.length < 4) return "";
+  const out = byeOutlook(roster);
+  const bad = out.weeks.filter(function(w){ return w.off >= 3; });
+  const cells = out.weeks.map(function(w){
+    const cls = w.off >= 3 ? "bad" : (w.off === 2 ? "warn" : "faint");
+    const bg  = w.off >= 3 ? "var(--gold-soft)" : "transparent";
+    return '<div title="' + (w.who.join(", ") || "no starters on bye") +
+      '" style="flex:1; min-width:26px; text-align:center; padding:5px 2px; background:' + bg +
+      '; border-radius:4px"><div class="faint" style="font-size:9.5px">' + w.week + "</div>" +
+      '<div class="' + cls + '" style="font-family:var(--mono); font-size:13px">' +
+      (w.off || "·") + "</div></div>";
+  }).join("");
+  return '<div class="card" style="margin-bottom:16px"><div class="card-h">' +
+    "<h3>Bye outlook</h3><span class=\"eyebrow\">starters idle per week</span></div>" +
+    '<div class="card-b"><div style="display:flex; gap:3px">' + cells + "</div>" +
+    (bad.length
+      ? '<p class="warn" style="font-size:12.5px; margin:9px 0 0">Week ' +
+        bad.map(function(w){ return w.week + " (" + w.off + ")"; }).join(", ") +
+        " leave you short. Worth a late-round body who plays those weeks — not worth reaching in round 5.</p>"
+      : '<p class="faint" style="font-size:12.5px; margin:9px 0 0">No week costs you three or more starters.</p>') +
+    "</div></div>";
 }
 
 /* ---------- Depth Charts ---------- */
@@ -3597,8 +3730,14 @@ function showHashResult(res){
   if(msg) msg.innerHTML = importMessage(res, LEAGUES[res.league].host+" (one-click sync)");
 }
 $("#syncGo").addEventListener("click",runImport);
+$("#draftWhenIn").addEventListener("change",function(){
+  setDraftWhen(state.league, this.value);
+  renderCountdown(state.league);
+});
 $("#draftIdSave").addEventListener("click",function(){
   setDraftId(state.league, $("#draftIdIn").value);
+  setDraftWhen(state.league, $("#draftWhenIn").value);
+  renderCountdown(state.league);
   refreshBookmarklet(state.league);
   const msg = $("#liveMsg");
   if(msg) msg.innerHTML = draftIdFor(state.league)
@@ -3640,6 +3779,9 @@ function applyLeague(key){
   $("#bmWrap").hidden = !(L.liveFeed) || !!window.LIVE_CAPABLE;
   const dIn = $("#draftIdIn");
   if(dIn) dIn.value = draftIdFor(key);
+  const wIn = $("#draftWhenIn");
+  if(wIn) wIn.value = draftWhenFor(key);
+  renderCountdown(key);
   refreshBookmarklet(key);
   $("#syncHow").innerHTML = (key==="sleeper12")
     ? 'Sleeper publishes this draft\'s picks as open JSON. Open ' +
