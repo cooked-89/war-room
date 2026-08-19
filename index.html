@@ -319,6 +319,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       <button class="tab" role="tab" aria-selected="true"  data-p="board">Big Board</button>
       <button class="tab" role="tab" aria-selected="false" data-p="draft">Draft</button>
       <button class="tab" role="tab" aria-selected="false" data-p="team">My Team</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="week">Week</button>
       <button class="tab" role="tab" aria-selected="false" data-p="depth">Depth Charts</button>
       <button class="tab" role="tab" aria-selected="false" data-p="intel">Intel</button>
       <button class="tab" role="tab" aria-selected="false" data-p="plan">Plan</button>
@@ -448,6 +449,11 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       </div>
 
       <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><h3>Cost of waiting</h3><span class="eyebrow" id="cowMeta"></span></div>
+        <div class="card-b" id="cowOut"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
         <div class="card-h">
           <h3>Plan this slot</h3>
           <button class="btn sm" id="slotPlanGo">Simulate 24 drafts</button>
@@ -482,6 +488,18 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
 <!-- ================= MY TEAM ================= -->
 <section class="panel" id="p-team" hidden>
   <div id="teamOut"></div>
+</section>
+
+<!-- ================= WEEK ================= -->
+<section class="panel" id="p-week" hidden>
+  <div class="toolbar">
+    <label class="fld">Week
+      <select id="weekPick"></select>
+    </label>
+    <button class="btn primary" id="weekGo">Load week</button>
+    <span class="faint" style="font-size:12px">Weekly projections, scored under this league's rules.</span>
+  </div>
+  <div id="weekOut"><p class="muted" style="margin:0">Pick a week and load it.</p></div>
 </section>
 
 <!-- ================= DEPTH ================= -->
@@ -2248,6 +2266,16 @@ function load(){
    same position. VORP is the number that makes positions comparable — 250 points
    from a quarterback is worth less than 200 from a tight end when twelve
    quarterbacks are startable and three tight ends are. */
+/* Score one stat line under one league's rules. Kickers and defenses arrive
+   pre-bucketed from Sleeper, so their own total is the honest number. */
+function scoreRow(r, S, pos){
+  if(pos === "PK" || pos === "DEF") return r.sleeperPts || 0;
+  return (r.passYd||0) / S.passYdPer + (r.passTd||0) * S.passTd + (r.int||0) * S.int
+       + (r.rushYd||0) / S.rushYdPer + (r.rushTd||0) * S.rushTd
+       + (r.rec||0) * S.ppr + (r.recYd||0) / S.recYdPer + (r.recTd||0) * S.recTd
+       + (r.fum||0) * S.fum;
+}
+
 function attachProjections(key){
   const S = SCORING[key];
   PLAYERS.forEach(function(p){
@@ -2257,16 +2285,13 @@ function attachProjections(key){
       : PROJ.byName.get(normName(p.name)+"|"+p.pos));
     p.projRow = r || null;
     p.inj = (live && live.inj) ? live.inj : "";
+    /* The board's ADP is mock-draft consensus; Sleeper's is what actually happens in
+       Sleeper drafts. Where they disagree sharply, one of them is stale or the market
+       is split — either way it is worth seeing. */
+    const alt = liveAdpFor(live, key);
+    p.adpAlt = (alt && alt > 0 && alt < 400 && !state.useLiveAdp) ? alt : null;
     if(!r){ p.proj = null; return; }
-    if(p.pos === "PK" || p.pos === "DEF"){
-      p.proj = r.sleeperPts;                 // pre-bucketed; use Sleeper's own total
-    } else {
-      p.proj = r.passYd / S.passYdPer + r.passTd * S.passTd + r.int * S.int
-             + r.rushYd / S.rushYdPer + r.rushTd * S.rushTd
-             + r.rec * S.ppr + r.recYd / S.recYdPer + r.recTd * S.recTd
-             + r.fum * S.fum;
-    }
-    p.proj = Math.round(p.proj * 10) / 10;
+    p.proj = Math.round(scoreRow(r, S, p.pos) * 10) / 10;
   });
 
   /* Replacement level comes from the STARTING lineup, never from roster minimums.
@@ -2498,6 +2523,51 @@ function sosCell(team, kind){
          SOS[team][kind+"Rank"] + ' of 32, 1 = easiest)">' + "▉".repeat(g) + "</span>";
 }
 
+/* ---------- will he last? ----------
+   A player's real draft slot scatters around his ADP, and the scatter widens the
+   later he goes: everyone agrees on the first pick, nobody agrees on the ninety-first.
+   Modelling that as a normal distribution around ADP gives the only number that
+   actually decides a pick — the chance he is still there when you come back. The
+   spread is an estimate, not measured, so it is labelled as odds and never as fact. */
+function adpSpread(adp){ return Math.max(5, 3 + 0.28 * adp); }
+
+function normCdf(z){
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989422804014327 * Math.exp(-z * z / 2);
+  const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 +
+            t * (-1.821255978 + t * 1.330274429))));
+  return z > 0 ? 1 - p : p;
+}
+
+/* P(still available at `to`), given he is available now at `from`. */
+function survival(p, from, to){
+  if(to === null || to <= from) return 1;
+  const sd = adpSpread(p.adp);
+  const now  = 1 - normCdf((from - p.adp) / sd);
+  const then = 1 - normCdf((to   - p.adp) / sd);
+  if(now <= 0.002) return 0;
+  return Math.max(0, Math.min(1, then / now));
+}
+
+/* What it costs to spend this pick elsewhere: the best player at each position now,
+   against the best one likely to survive until your next turn. */
+function costOfWaiting(avail, here, next){
+  const out = [];
+  ["QB","RB","WR","TE"].forEach(function(pos){
+    const list = avail.filter(function(p){ return p.pos===pos && p.vorp!==null; })
+                      .sort(function(a,b){ return b.vorp-a.vorp; });
+    if(!list.length) return;
+    let expected = null;
+    for(let i=0;i<list.length;i++){
+      if(survival(list[i], here, next) >= 0.5){ expected = list[i]; break; }
+    }
+    if(!expected) expected = list[list.length-1];
+    out.push({pos:pos, best:list[0], expected:expected,
+              drop: Math.round((list[0].vorp - expected.vorp) * 10) / 10});
+  });
+  return out.sort(function(a,b){ return b.drop-a.drop; });
+}
+
 /* ---------- draft helpers ---------- */
 const teamOnClock = ov => {
   const r = Math.floor(ov / state.teams);        // 0-indexed round
@@ -2659,6 +2729,17 @@ function injBadge(p){
          '" title="' + esc(p.inj) + '" style="padding:1px 5px; font-size:10px">' + short + "</span>";
 }
 
+function adpGapNote(p){
+  if(p.adpAlt === null || p.adpAlt === undefined) return "";
+  const gap = p.adpAlt - p.adp;
+  if(Math.abs(gap) < 12) return "";
+  const cheaper = gap > 0;      // Sleeper drafters let him fall further
+  return ' <span class="chip ' + (cheaper ? "sleeper" : "bust") +
+    '" title="Board ADP ' + p.adp.toFixed(0) + ', Sleeper ADP ' + p.adpAlt.toFixed(0) +
+    '" style="padding:1px 5px; font-size:10px">' +
+    (cheaper ? "falls " : "rises ") + Math.abs(Math.round(gap)) + "</span>";
+}
+
 function vorpCell(p){
   if(p.vorp===null) return '<span class="faint">—</span>';
   const cls = p.vorp>0 ? "good" : (p.vorp<0 ? "faint" : "muted");
@@ -2696,7 +2777,7 @@ function renderBoard(){
     <tr class="${gone.has(p.id)?"gone":""} ${p.tierTop&&state.filter!=="ALL"?"tier-top":""}" data-id="${p.id}">
       <td class="stripe ${p.pos}"></td>
       <td class="num muted">${p.adp.toFixed(1)}</td>
-      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}</td>
+      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}${adpGapNote(p)}</td>
       <td>${posPill(p)}</td>
       <td class="faint">${p.team}</td>
       <td class="num faint">${p.bye??"—"}</td>
@@ -2737,6 +2818,10 @@ function recommend(){
       let score = need * Math.exp(-i/2.2) * Math.exp(-reach/22);
       // a player worth 60 more points than replacement should outrank a peer worth 10
       if(p.vorp !== null && p.vorp > 0) score *= (1 + Math.min(p.vorp, 120) / 160);
+      /* Between two similar players, take the one who will not be there next time. */
+      const surv = survival(p, here + 1, nextMine === null ? null : nextMine + 1);
+      p._surv = surv;
+      score *= (1.25 - 0.5 * surv);
       if(/^(Out|IR|PUP|DNR|NA|Doubtful)$/i.test(p.inj || "")) score *= 0.45;
       if(state.star.has(p.id)) score *= 1.35;
       if(state.avoid.has(p.id)) score *= 0.15;
@@ -2836,6 +2921,11 @@ function renderDraft(){
       if(r.value>6) bits.push(`<span class="good">falling — ADP ${p.adp.toFixed(1)}, you're at ${ov+1}</span>`);
       else if(r.value<-8) bits.push(`<span class="bad">reach — ADP ${p.adp.toFixed(1)}</span>`);
       if(r.bench) bits.push('<span class="faint">every slot is filled - bench depth</span>');
+      if(p._surv !== undefined && p._surv < 1){
+        const pct = Math.round(p._surv * 100);
+        const cls = pct <= 25 ? "bad" : (pct >= 70 ? "good" : "muted");
+        bits.push('<span class="' + cls + '">' + (pct < 5 ? "<5" : pct) + "% to last</span>");
+      }
       if(p.vorp !== null) bits.push(`<strong>${p.vorp>0?"+":""}${p.vorp.toFixed(0)}</strong> value`);
       bits.push(`${r.left} left in ${p.pos} tier ${p.tier}`);
       if(p.inj) bits.push(`<span class="bad">${esc(p.inj)}</span>`);
@@ -2848,6 +2938,37 @@ function renderDraft(){
       if(p.tags.length) bits.push(p.tags.join(" / "));
       return rowFor(p, i+1, bits.join(" · "));
     }).join("");
+  }
+
+  // cost of waiting
+  const cowEl = $("#cowOut"), cowMeta = $("#cowMeta");
+  if(cowEl){
+    const nm2 = nextMyPick();
+    if(done || nm2 === null){
+      cowEl.innerHTML = '<p class="muted" style="margin:0; font-size:13px">No picks left.</p>';
+      if(cowMeta) cowMeta.textContent = "";
+    } else {
+      const hereN = state.picks.length + 1;
+      const rows = costOfWaiting(available(), hereN, nm2 + 1);
+      if(cowMeta) cowMeta.textContent = "pick " + hereN + " → " + (nm2 + 1);
+      cowEl.innerHTML = rows.length ? rows.map(function(r){
+        const pct = Math.round(survival(r.best, hereN, nm2 + 1) * 100);
+        const strong = r.drop >= 15;
+        return '<div style="display:flex; gap:9px; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--line)">' +
+          '<span class="pos ' + r.pos + '">' + POS_LABEL[r.pos] + "</span>" +
+          '<span style="flex:1; min-width:0; font-size:12.5px">' +
+            '<span class="pname">' + esc(r.best.name) + "</span> " +
+            '<span class="faint">' + pct + "% to last</span>" +
+            (r.best.id === r.expected.id ? "" :
+              ' <span class="faint">· else ' + esc(r.expected.name) + "</span>") +
+          "</span>" +
+          '<span class="num ' + (strong ? "bad" : "muted") + '" style="font-size:12.5px">' +
+            (r.drop > 0 ? "−" : "") + Math.abs(r.drop).toFixed(0) + "</span></div>";
+      }).join("") + '<p class="faint" style="font-size:11.5px; margin:8px 0 0">' +
+        "Value lost at each position if you spend this pick elsewhere and come back at " +
+        (nm2 + 1) + ". Odds are modelled from ADP spread, not measured." + "</p>"
+      : '<p class="muted" style="margin:0; font-size:13px">Nothing left to compare.</p>';
+    }
   }
 
   // runs panel
@@ -3077,6 +3198,143 @@ function renderSlotPlan(){
   "the round where the position flips is the part worth remembering.</p>";
 }
 
+/* ---------- in-season week view ----------
+   The same scoring engine pointed at one week instead of the season. The lineup is
+   filled greedily by projected points within each slot's eligibility, which is optimal
+   for a fixed set of slots. Waiver targets are the best players nobody drafted. */
+let WEEKLY = null;
+
+async function fetchWeek(week){
+  const wanted = ["QB","RB","WR","TE","K","DEF"];
+  const bundles = await Promise.all(wanted.map(async function(pos){
+    const url = "https://api.sleeper.com/projections/nfl/2026/" + week +
+                "?season_type=regular&position[]=" + pos + "&order_by=pts_ppr";
+    const res = await fetch(url, {cache:"no-store"});
+    if(!res.ok) throw new Error(pos + " HTTP " + res.status);
+    return res.json();
+  }));
+  const byName = new Map(), byDefTeam = new Map();
+  bundles.forEach(function(list){
+    list.forEach(function(rec){
+      const p = rec.player || {}, s = rec.stats || {};
+      const nm = ((p.first_name||"") + " " + (p.last_name||"")).trim();
+      if(!nm) return;
+      const raw = p.position || "";
+      const row = {
+        name:nm, pos:(raw === "K" ? "PK" : raw), team:(rec.team || p.team || ""),
+        opp:(rec.opponent || ""), passYd:+(s.pass_yd||0), passTd:+(s.pass_td||0),
+        int:+(s.pass_int||0), rushYd:+(s.rush_yd||0), rushTd:+(s.rush_td||0),
+        rec:+(s.rec||0), recYd:+(s.rec_yd||0), recTd:+(s.rec_td||0),
+        fum:+(s.fum_lost||0), sleeperPts:+(s.pts_std||0), inj:(p.injury_status||"")
+      };
+      if(row.pos === "DEF") byDefTeam.set(row.team, row);
+      else byName.set(normName(nm) + "|" + row.pos, row);
+    });
+  });
+  return {week:week, byName:byName, byDefTeam:byDefTeam, at:Date.now()};
+}
+
+async function loadWeek(){
+  const out = $("#weekOut");
+  out.innerHTML = '<p class="muted" style="margin:0">Loading...</p>';
+  try{
+    const sel = $("#weekPick");
+    const week = parseInt(sel.value, 10) || 1;
+    WEEKLY = await fetchWeek(week);
+    renderWeek();
+  }catch(e){
+    out.innerHTML = '<p class="bad" style="margin:0">Could not load week data: ' + esc(e.message) + '</p>';
+  }
+}
+
+function weekRowFor(p){
+  if(!WEEKLY) return null;
+  return p.pos === "DEF" ? (WEEKLY.byDefTeam.get(p.team) || null)
+                         : (WEEKLY.byName.get(normName(p.name) + "|" + p.pos) || null);
+}
+
+function weekSlotLabel(slot){
+  return slot === "PK" ? "K" : slot === "DEF" ? "DST" : slot === "SFLEX" ? "SFLX" : slot;
+}
+
+function slotAccepts(slot, pos){
+  if(slot === "FLEX")  return ["RB","WR","TE"].indexOf(pos) >= 0;
+  if(slot === "SFLEX") return ["QB","RB","WR","TE"].indexOf(pos) >= 0;
+  return pos === slot;
+}
+
+function renderWeek(){
+  const out = $("#weekOut");
+  if(!out) return;
+  if(!WEEKLY){ out.innerHTML = '<p class="muted" style="margin:0">Pick a week and load it.</p>'; return; }
+  const S = SCORING[state.league];
+  const roster = rosterOf(myIdx());
+  if(!roster.length){
+    out.innerHTML = '<p class="muted" style="margin:0">Draft a team first - this uses the roster from the Draft tab.</p>';
+    return;
+  }
+
+  const scored = roster.map(function(p){
+    const r = weekRowFor(p);
+    return {p:p, pts: r ? Math.round(scoreRow(r, S, p.pos) * 10) / 10 : null,
+            opp: r ? r.opp : "", inj: r ? r.inj : p.inj};
+  }).sort(function(a,b){ return (b.pts===null?-1:b.pts) - (a.pts===null?-1:a.pts); });
+
+  const used = new Set(), starters = [];
+  LINEUP.forEach(function(pair){
+    for(let i=0;i<pair[1];i++){
+      const slot = pair[0];
+      const pick = scored.find(function(x){
+        return !used.has(x.p.id) && x.pts !== null && slotAccepts(slot, x.p.pos);
+      });
+      if(pick) used.add(pick.p.id);
+      starters.push({slot:slot, x:pick || null});
+    }
+  });
+  const bench = scored.filter(function(x){ return !used.has(x.p.id); });
+  const total = starters.reduce(function(a,s){ return a + (s.x ? s.x.pts : 0); }, 0);
+
+  const line = function(label, x){
+    if(!x) return '<div class="slotrow empty"><span class="lbl">' + label + '</span><span>empty</span></div>';
+    return '<div class="slotrow"><span class="lbl">' + label + '</span>' + posPill(x.p) +
+      '<span style="flex:1; min-width:0"><span class="pname">' + esc(x.p.name) + '</span>' +
+      (x.inj ? ' <span class="chip bust" style="padding:1px 5px; font-size:10px">' + esc(x.inj) + '</span>' : '') +
+      ' <span class="faint" style="font-size:11.5px">' + (x.opp ? 'vs ' + esc(x.opp) : x.p.team) + '</span></span>' +
+      '<span class="num">' + (x.pts === null ? '-' : x.pts.toFixed(1)) + '</span></div>';
+  };
+
+  const taken = takenIds();
+  const adds = PLAYERS.filter(function(p){ return !taken.has(p.id); })
+    .map(function(p){ const r = weekRowFor(p);
+      return {p:p, pts: r ? Math.round(scoreRow(r, S, p.pos) * 10) / 10 : null, opp: r ? r.opp : ''}; })
+    .filter(function(x){ return x.pts !== null; })
+    .sort(function(a,b){ return b.pts - a.pts; }).slice(0, 10);
+
+  const byeCount = starters.filter(function(s){ return s.x && !s.x.opp; }).length;
+
+  out.innerHTML =
+    '<div class="card" style="margin-bottom:16px"><div class="card-h">' +
+      '<h3>Week ' + WEEKLY.week + ' lineup</h3>' +
+      '<span class="eyebrow">' + total.toFixed(1) + ' projected</span></div>' +
+      '<div class="card-b"><div class="roster">' +
+        starters.map(function(s){ return line(weekSlotLabel(s.slot), s.x); }).join('') +
+      '</div></div></div>' +
+    (byeCount ? '<div class="alert hot" style="margin-bottom:16px"><b>' + byeCount +
+      ' starter' + (byeCount>1?'s have':' has') + ' no game this week.</b> Bye or unscheduled - replace before kickoff.</div>' : '') +
+    '<div class="card" style="margin-bottom:16px"><div class="card-h"><h3>Bench</h3>' +
+      '<span class="eyebrow">already optimal above</span></div>' +
+      '<div class="card-b"><div class="roster">' +
+        (bench.length ? bench.map(function(b){ return line('BN', b); }).join('')
+                      : '<p class="muted" style="margin:0">Empty.</p>') +
+      '</div></div></div>' +
+    '<div class="card"><div class="card-h"><h3>Waiver targets</h3>' +
+      '<span class="eyebrow">undrafted, best this week</span></div>' +
+      '<div class="card-b"><div class="roster">' +
+        (adds.length ? adds.map(function(a){ return line('FA', a); }).join('')
+                     : '<p class="muted" style="margin:0">Board is exhausted.</p>') +
+      '</div></div></div>';
+}
+
 /* ---------- Depth Charts ---------- */
 function renderDepth(){
   const q = ($("#dq").value||"").toLowerCase().trim();
@@ -3172,6 +3430,7 @@ function renderAll(){
   renderBoard();
   if(state.tab==="draft") renderDraft();
   if(state.tab==="team") renderTeam();
+  if(state.tab==="week") renderWeek();
   if(state.tab==="depth") renderDepth();
   if(state.tab==="intel") renderIntel();
 }
@@ -3203,6 +3462,21 @@ $("#tagfilter").addEventListener("click",e=>{
   renderIntel();
 });
 $("#dq").addEventListener("input",renderDepth);
+(function(){
+  const sel = $("#weekPick");
+  for(let w=1; w<=18; w++){
+    const o=document.createElement("option"); o.value=w; o.textContent=w; sel.appendChild(o);
+  }
+  sel.value = 1;
+  /* Default to the live week once the season is under way. */
+  if(window.LIVE_CAPABLE){
+    fetch("https://api.sleeper.app/v1/state/nfl", {cache:"no-store"})
+      .then(function(r){ return r.json(); })
+      .then(function(st){ if(st && st.season_type === "regular" && st.week) sel.value = st.week; })
+      .catch(function(){});
+  }
+})();
+$("#weekGo").addEventListener("click",loadWeek);
 
 $("#boardBody").addEventListener("click",e=>{
   const s=e.target.closest("[data-star]"), a=e.target.closest("[data-avoid]");
