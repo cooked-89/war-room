@@ -1907,7 +1907,7 @@ const PROJ = (function(){
   const byName = new Map(), byDefTeam = new Map();
   PROJ_RAW.split(String.fromCharCode(10)).forEach(function(line){
     const c = line.split('|');
-    const rec = {name:c[0], pos:c[1], team:c[2], gp:+c[3],
+    const rec = {name:c[0], pos:(c[1]==='K'?'PK':c[1]), team:c[2], gp:+c[3],
       passYd:+c[4], passTd:+c[5], int:+c[6], rushYd:+c[7], rushTd:+c[8],
       rec:+c[9], recYd:+c[10], recTd:+c[11], fum:+c[12], sleeperPts:+c[13]};
     if(rec.pos==='DEF') byDefTeam.set(rec.team, rec);
@@ -2218,19 +2218,22 @@ function loadCachedLive(){
 }
 
 async function fetchLive(){
-  const L = LEAGUES[state.league];
-  const drop = L.drop || [];
-  const wanted = ["QB","RB","WR","TE"]
-    .concat(drop.indexOf("PK") >= 0 ? [] : ["K"])
-    .concat(drop.indexOf("DEF") >= 0 ? [] : ["DEF"]);
-  const rows = [];
-  for(const pos of wanted){
+  /* Every position, every time. The cache is shared across leagues, so fetching only
+     what the current league uses leaves the others silently missing kickers and
+     defenses the moment you switch. Requests run in parallel — six sequential
+     round-trips is a long wait on a phone. */
+  const wanted = ["QB","RB","WR","TE","K","DEF"];
+  const responses = await Promise.all(wanted.map(async function(pos){
     const url = "https://api.sleeper.com/projections/nfl/2026?season_type=regular&position[]="
               + pos + "&order_by=pts_ppr";
     const res = await fetch(url, {cache:"no-store"});
     if(!res.ok) throw new Error(pos + " returned HTTP " + res.status);
-    const j = await res.json();
-    j.forEach(function(rec){
+    return {pos:pos, json: await res.json()};
+  }));
+  const rows = [];
+  for(const bundle of responses){
+    const pos = bundle.pos;
+    bundle.json.forEach(function(rec){
       const p = rec.player || {}, s = rec.stats || {};
       const nm = ((p.first_name||"") + " " + (p.last_name||"")).trim();
       if(!nm) return;
