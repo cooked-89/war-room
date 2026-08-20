@@ -1258,6 +1258,51 @@ harness = r'''
     EXTRA_PROJ={}; applyLeague("espn10");
   });
 
+
+  step("real-depth-charts-loaded",function(){
+    ensureLeagueOnly("espn10");
+    var teams=Object.keys(DEPTH.byTeamPos).map(function(k){return k.split("|")[0];});
+    if(new Set(teams).size!==32) throw new Error("expected 32 teams, got "+new Set(teams).size);
+    ["QB","RB","WR","TE"].forEach(function(pos){
+      var det=DEPTH.byTeamPos["DET|"+pos];
+      if(!det||!det.length) throw new Error("no Detroit "+pos+" depth");
+      if(det[0].rank!==1) throw new Error(pos+" list should start at 1");
+    });
+    var goff=DEPTH.byName.get(normName("Jared Goff")+"|QB");
+    if(!goff||goff.rank!==1||goff.team!=="DET") throw new Error("Goff should be Detroit QB1");
+    var arsb=DEPTH.byName.get(normName("Amon-Ra St. Brown")+"|WR");
+    if(!arsb||arsb.rank!==1) throw new Error("St. Brown should be Detroit WR1");
+    if(arsb.slot!=="slot") throw new Error("alignment lost, got "+arsb.slot);
+  });
+
+  step("depth-vs-market-disagreement",function(){
+    ensureLeagueOnly("espn10");
+    var withBoth=PLAYERS.filter(function(p){return p.depthRank!==null && p.marketRank;});
+    if(withBoth.length<80) throw new Error("only "+withBoth.length+" players have both rankings");
+    // market rank must be a dense 1..n per team+position
+    var seen={};
+    PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;}).forEach(function(p){
+      var k=p.team+"|"+p.pos; seen[k]=(seen[k]||0)+1;
+      if(p.marketRank!==seen[k]) throw new Error("market rank not sequential for "+k);
+    });
+    var gaps=withBoth.filter(function(p){return Math.abs(p.depthGap)>=1;});
+    if(!gaps.length) throw new Error("no disagreements at all - suspicious");
+    var badged=gaps.filter(function(p){return depthNote(p)!=="";});
+    if(badged.length!==gaps.length) throw new Error("some disagreements are not badged");
+    if(depthNote(withBoth.filter(function(p){return p.depthGap===0;})[0]||{depthGap:0})!=="")
+      throw new Error("agreement should not be badged");
+    log.push("   (depth charts: "+withBoth.length+" players ranked by both, "+gaps.length+" disagree)");
+  });
+
+  step("depth-tab-leads-with-the-team",function(){
+    ensureLeagueOnly("espn10");
+    state.tab="depth"; document.getElementById("p-depth").hidden=false;
+    renderDepth();
+    var html=document.getElementById("depthOut").innerHTML;
+    if(html.indexOf("Jared Goff")<0) throw new Error("depth tab missing a listed starter");
+    if(html.indexOf("mkt ")<0) throw new Error("no market-disagreement markers rendered");
+  });
+
   // ---- importer ----
   step("import-sleeper-json",function(){
     applyLeague("sleeper12"); state.picks=[]; state.sim=false;

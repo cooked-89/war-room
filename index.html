@@ -589,7 +589,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
 <section class="panel" id="p-depth" hidden>
   <div class="toolbar">
     <input type="text" id="dq" placeholder="Filter by team…" style="min-width:170px">
-    <span class="faint" style="font-size:12px">Ordered by ADP within each team — the market's read on the pecking order.</span>
+    <span class="faint" style="font-size:12px">The team's own depth chart, with the market's ranking noted where it disagrees.</span>
   </div>
   <div class="teams" id="depthOut"></div>
 </section>
@@ -2062,6 +2062,616 @@ const PROJ = (function(){
    straight from its API). `passYdPer` is yards per point. */
 /* 2026 opponents by week, from Sleeper's public schedule. TEAM:wk1,wk2,... with an
    empty slot for the bye. Cross-checks clean against the bye-week table above. */
+/* Real NFL depth charts, from Sleeper's player file. Until now the Depth Charts tab
+   inferred a pecking order from ADP, which is the market's opinion rather than the
+   team's - useful, but not the same thing, and the gap between them is exactly where
+   value hides. Sleeper splits receivers by alignment (left, right, slot); fantasy does
+   not care which side of the field, so those are merged and re-ranked per team.
+   TEAM|POS|rank|alignment|name */
+const DEPTH_RAW = `
+ARI|QB|1||Jacoby Brissett
+ARI|QB|2||Carson Beck
+ARI|QB|3||Kedon Slovis
+ARI|QB|3||Gardner Minshew
+ARI|RB|1||Jeremiyah Love
+ARI|RB|2||Tyler Allgeier
+ARI|RB|3||James Conner
+ARI|RB|4||Trey Benson
+ARI|RB|5||Zonovan Knight
+ARI|TE|1||Trey McBride
+ARI|TE|2||Elijah Higgins
+ARI|TE|3||Tip Reiman
+ARI|TE|4||Teagan Quitoriano
+ARI|TE|5||Rivaldo Fairweather
+ARI|TE|5||Baylor Cupp
+ARI|WR|1|X|Marvin Harrison
+ARI|WR|2|Z|Michael Wilson
+ARI|WR|3|slot|Kendrick Bourne
+ARI|WR|4|X|Reggie Virgil
+ARI|WR|5|slot|Devin Duvernay
+ATL|QB|1||Tua Tagovailoa
+ATL|QB|2||Michael Penix
+ATL|QB|3||Cooper Rush
+ATL|RB|1||Bijan Robinson
+ATL|RB|2||Brian Robinson
+ATL|RB|3||Nathan Carter
+ATL|RB|4||Tyler Goodson
+ATL|RB|5||Trey Sermon
+ATL|TE|1||Kyle Pitts
+ATL|TE|2||Austin Hooper
+ATL|TE|3||Charlie Woerner
+ATL|TE|4||Joshua Simon
+ATL|WR|1|X|Drake London
+ATL|WR|2|Z|Jahan Dotson
+ATL|WR|3|slot|Olamide Zaccheaus
+ATL|WR|4|Z|Dylan Drummond
+ATL|WR|5|slot|Zachariah Branch
+BAL|QB|1||Lamar Jackson
+BAL|QB|2||Tyler Huntley
+BAL|QB|3||Skylar Thompson
+BAL|QB|4||Austin Reed
+BAL|QB|4||Aaron Bailey
+BAL|RB|1||Derrick Henry
+BAL|RB|2||Justice Hill
+BAL|RB|3||Adam Randall
+BAL|RB|4||Rasheen Ali
+BAL|RB|5||Jonathan Ward
+BAL|TE|1||Mark Andrews
+BAL|TE|2||Durham Smythe
+BAL|TE|3||Matt Hibner
+BAL|TE|4||Josh Cuevas
+BAL|WR|1|slot|Zay Flowers
+BAL|WR|2|X|Rashod Bateman
+BAL|WR|3|Z|Ja'Kobi Lane
+BAL|WR|4|Z|Devontez Walker
+BAL|WR|5|X|Elijah Sarratt
+BUF|QB|1||Josh Allen
+BUF|QB|2||Shane Buechele
+BUF|QB|3||Kyle Allen
+BUF|RB|1||James Cook
+BUF|RB|2||Ty Johnson
+BUF|RB|3||Ray Davis
+BUF|RB|4||Ben VanSumeren
+BUF|RB|4||Frank Gore
+BUF|RB|5||Ian Wheeler
+BUF|TE|1||Dalton Kincaid
+BUF|TE|2||Dawson Knox
+BUF|TE|3||Jackson Hawes
+BUF|TE|4||Keleki Latu
+BUF|TE|5||Shane Zylstra
+BUF|WR|1|X|DJ Moore
+BUF|WR|2|slot|Khalil Shakir
+BUF|WR|3|X|Keon Coleman
+BUF|WR|4|Z|Joshua Palmer
+BUF|WR|5|slot|Skyler Bell
+CAR|QB|1||Bryce Young
+CAR|QB|2||Kenny Pickett
+CAR|QB|3||Kyle Trask
+CAR|RB|1||Chuba Hubbard
+CAR|RB|2||Jonathon Brooks
+CAR|RB|3||AJ Dillon
+CAR|RB|4||Trevor Etienne
+CAR|TE|1||Darren Waller
+CAR|TE|2||Tommy Tremble
+CAR|TE|3||Ja'Tavion Sanders
+CAR|TE|4||Mitchell Evans
+CAR|TE|5||James Mitchell
+CAR|WR|1|X|Tetairoa McMillan
+CAR|WR|2|slot|Jalen Coker
+CAR|WR|3|Z|Xavier Legette
+CAR|WR|4|slot|Jimmy Horn
+CAR|WR|5|Z|Brycen Tremayne
+CHI|QB|1||Caleb Williams
+CHI|QB|2||Tyson Bagent
+CHI|QB|3||Case Keenum
+CHI|RB|1||D'Andre Swift
+CHI|RB|2||Kyle Monangai
+CHI|RB|3||Brittain Brown
+CHI|RB|4||Salvon Ahmed
+CHI|RB|5||Roschon Johnson
+CHI|TE|1||Colston Loveland
+CHI|TE|2||Cole Kmet
+CHI|TE|3||Stephen Carlson
+CHI|TE|3||Sam Roush
+CHI|TE|4||Nikola Kalinic
+CHI|WR|1|X|Rome Odunze
+CHI|WR|2|Z|Luther Burden
+CHI|WR|3|slot|Kalif Raymond
+CHI|WR|4|slot|Ray-Ray McCloud
+CHI|WR|5|X|Jahdae Walker
+CIN|QB|1||Joe Burrow
+CIN|QB|2||Joe Flacco
+CIN|QB|3||Josh Johnson
+CIN|QB|4||Sean Clifford
+CIN|RB|1||Chase Brown
+CIN|RB|2||Samaje Perine
+CIN|RB|3||Tahj Brooks
+CIN|RB|4||Jamal Haynes
+CIN|RB|5||Kendall Milton
+CIN|RB|5||Gary Brightwell
+CIN|TE|1||Mike Gesicki
+CIN|TE|2||Erick All
+CIN|TE|3||Drew Sample
+CIN|TE|4||Jack Endries
+CIN|TE|5||Tanner Hudson
+CIN|WR|1|X|Ja'Marr Chase
+CIN|WR|2|Z|Tee Higgins
+CIN|WR|3|slot|Andrei Iosivas
+CIN|WR|4|X|Colbie Young
+CIN|WR|5|Z|Mitch Tinsley
+CLE|QB|1||Deshaun Watson
+CLE|QB|2||Shedeur Sanders
+CLE|QB|3||Taylen Green
+CLE|QB|4||Dillon Gabriel
+CLE|RB|1||Quinshon Judkins
+CLE|RB|2||Dylan Sampson
+CLE|RB|3||Raheim Sanders
+CLE|RB|4||Michael Burton
+CLE|TE|1||Harold Fannin
+CLE|TE|2||Jack Stoll
+CLE|TE|3||Joe Royer
+CLE|TE|4||Blake Whiteheart
+CLE|TE|5||Brenden Bates
+CLE|WR|1|Z|Jerry Jeudy
+CLE|WR|2|slot|KC Concepcion
+CLE|WR|3|X|Denzel Boston
+CLE|WR|4|X|Cedric Tillman
+CLE|WR|5|slot|Isaiah Bond
+DAL|QB|1||Dak Prescott
+DAL|QB|2||Joe Milton
+DAL|QB|3||Sam Howell
+DAL|RB|1||Javonte Williams
+DAL|RB|2||Malik Davis
+DAL|RB|3||Jaydon Blue
+DAL|RB|4||Israel Abanikanda
+DAL|RB|5||Phil Mafah
+DAL|TE|1||Jake Ferguson
+DAL|TE|2||Michael Trigg
+DAL|TE|3||Zack Kuntz
+DAL|TE|4||Princeton Fant
+DAL|TE|4||Luke Schoonmaker
+DAL|TE|5||Brevyn Spann-Ford
+DAL|WR|1|Z|CeeDee Lamb
+DAL|WR|2|X|George Pickens
+DAL|WR|3|slot|Ryan Flournoy
+DAL|WR|4|slot|KaVontae Turpin
+DAL|WR|5|Z|Jonathan Mingo
+DEN|QB|1||Bo Nix
+DEN|QB|2||Jarrett Stidham
+DEN|QB|3||Sam Ehlinger
+DEN|RB|1||J.K. Dobbins
+DEN|RB|2||RJ Harvey
+DEN|RB|3||Jonah Coleman
+DEN|RB|4||Adam Prentice
+DEN|RB|5||Tyler Badie
+DEN|TE|1||Evan Engram
+DEN|TE|2||Adam Trautman
+DEN|TE|3||Nate Adkins
+DEN|TE|4||Justin Joly
+DEN|TE|5||Lucas Krull
+DEN|WR|1|Z|Jaylen Waddle
+DEN|WR|2|X|Courtland Sutton
+DEN|WR|3|slot|Troy Franklin
+DEN|WR|4|slot|Pat Bryant
+DEN|WR|5|slot|Marvin Mims
+DET|QB|1||Jared Goff
+DET|QB|2||Joshua Dobbs
+DET|QB|3||Luke Altmyer
+DET|RB|1||Jahmyr Gibbs
+DET|RB|2||Isiah Pacheco
+DET|RB|3||Trayveon Williams
+DET|RB|4||Jabari Small
+DET|RB|4||Jacob Saylors
+DET|RB|4||Raheem Blackshear
+DET|RB|5||Sione Vaki
+DET|TE|1||Sam LaPorta
+DET|TE|2||Brock Wright
+DET|TE|3||Tyler Conklin
+DET|WR|1|slot|Amon-Ra St. Brown
+DET|WR|2|Z|Jameson Williams
+DET|WR|3|X|Isaac TeSlaa
+DET|WR|4|slot|Greg Dortch
+DET|WR|5|X|Cedrick Wilson
+GB|QB|1||Jordan Love
+GB|QB|2||Tyrod Taylor
+GB|QB|3||Kyle McCord
+GB|RB|1||Josh Jacobs
+GB|RB|2||MarShawn Lloyd
+GB|RB|3||Chris Brooks
+GB|RB|4||Damien Martinez
+GB|RB|5||Pierre Strong
+GB|TE|1||Tucker Kraft
+GB|TE|2||Luke Musgrave
+GB|TE|3||Josh Whyle
+GB|TE|4||Drake Dabney
+GB|TE|5||McCallan Castles
+GB|WR|1|X|Christian Watson
+GB|WR|2|slot|Jayden Reed
+GB|WR|3|Z|Matthew Golden
+GB|WR|4|X|Savion Williams
+GB|WR|5|Z|Bo Melton
+HOU|QB|1||C.J. Stroud
+HOU|QB|2||Davis Mills
+HOU|QB|3||Brett Rypien
+HOU|QB|3||Graham Mertz
+HOU|RB|1||David Montgomery
+HOU|RB|2||Woody Marks
+HOU|RB|3||Jawhar Jordan
+HOU|RB|4||British Brooks
+HOU|RB|5||Noah Whittington
+HOU|TE|1||Dalton Schultz
+HOU|TE|2||Marlin Klein
+HOU|TE|3||Cade Stover
+HOU|TE|4||Foster Moreau
+HOU|TE|5||Layne Pryor
+HOU|TE|5||Brevin Jordan
+HOU|WR|1|X|Nico Collins
+HOU|WR|2|Z|Jayden Higgins
+HOU|WR|3|X|Tank Dell
+HOU|WR|4|slot|Jaylin Noel
+HOU|WR|5|slot|Xavier Hutchinson
+IND|QB|1||Daniel Jones
+IND|QB|2||Anthony Richardson
+IND|QB|3||Riley Leonard
+IND|QB|4||Easton Stick
+IND|RB|1||Jonathan Taylor
+IND|RB|2||DJ Giddens
+IND|RB|3||Seth McGowan
+IND|TE|1||Tyler Warren
+IND|TE|2||Mo Alie-Cox
+IND|TE|3||Will Mallory
+IND|TE|4||Drew Ogletree
+IND|TE|5||Pharaoh Brown
+IND|WR|1|X|Alec Pierce
+IND|WR|2|slot|Josh Downs
+IND|WR|3|slot|Keenan Allen
+IND|WR|4|X|Ashton Dulin
+IND|WR|5|Z|Nick Westbrook-Ikhine
+JAX|QB|1||Trevor Lawrence
+JAX|QB|2||Nick Mullens
+JAX|QB|3||Carter Bradley
+JAX|RB|1||Bhayshul Tuten
+JAX|RB|2||Chris Rodriguez
+JAX|RB|3||LeQuint Allen
+JAX|RB|4||J'Mari Taylor
+JAX|RB|5||Ameer Abdullah
+JAX|TE|1||Brenton Strange
+JAX|TE|2||Nate Boerkircher
+JAX|TE|3||Hunter Long
+JAX|TE|4||Tanner Koziol
+JAX|TE|5||Quintin Morris
+JAX|WR|1|X|Brian Thomas
+JAX|WR|2|slot|Parker Washington
+JAX|WR|3|Z|Jakobi Meyers
+JAX|WR|4|slot|Chandler Brayboy
+JAX|WR|5|slot|Travis Hunter
+KC|QB|1||Patrick Mahomes
+KC|QB|2||Justin Fields
+KC|QB|3||Chris Oladokun
+KC|QB|4||Garrett Nussmeier
+KC|RB|1||Kenneth Walker
+KC|RB|2||Emari Demercado
+KC|RB|3||Emmett Johnson
+KC|RB|4||Brashard Smith
+KC|RB|5||Jaydn Ott
+KC|TE|1||Travis Kelce
+KC|TE|2||Noah Gray
+KC|TE|3||John Michael Gyllenborg
+KC|TE|4||Jared Wiley
+KC|TE|5||Mason Pline
+KC|TE|5||Jake Briningstool
+KC|WR|1|slot|Rashee Rice
+KC|WR|2|Z|Xavier Worthy
+KC|WR|3|X|Tyquan Thornton
+KC|WR|4|slot|Cyrus Allen
+KC|WR|5|X|Jalen Royals
+LAC|QB|1||Justin Herbert
+LAC|QB|2||Trey Lance
+LAC|QB|3||DJ Uiagalelei
+LAC|RB|1||Omarion Hampton
+LAC|RB|2||Keaton Mitchell
+LAC|RB|3||Kimani Vidal
+LAC|RB|4||Jaret Patterson
+LAC|RB|5||Alec Ingold
+LAC|TE|1||Oronde Gadsden
+LAC|TE|2||David Njoku
+LAC|TE|3||Charlie Kolar
+LAC|WR|1|slot|Ladd McConkey
+LAC|WR|2|X|Quentin Johnston
+LAC|WR|3|Z|Tre' Harris
+LAC|WR|4|Z|Brenen Thompson
+LAC|WR|5|X|KeAndre Lambert-Smith
+LAR|QB|1||Matthew Stafford
+LAR|QB|2||Ty Simpson
+LAR|QB|3||Stetson Bennett
+LAR|RB|1||Kyren Williams
+LAR|RB|2||Blake Corum
+LAR|RB|3||Jarquez Hunter
+LAR|RB|4||Dean Connors
+LAR|RB|5||Ronnie Rivers
+LAR|TE|1||Terrance Ferguson
+LAR|TE|2||Colby Parkinson
+LAR|TE|3||Tyler Higbee
+LAR|TE|4||Davis Allen
+LAR|TE|5||Max Klare
+LAR|WR|1|X|Puka Nacua
+LAR|WR|2|Z|Davante Adams
+LAR|WR|3|slot|Jordan Whittington
+LAR|WR|4|X|Konata Mumpfield
+LAR|WR|5|slot|Xavier Smith
+LV|QB|1||Fernando Mendoza
+LV|QB|2||Kirk Cousins
+LV|QB|3||Aidan O'Connell
+LV|RB|1||Ashton Jeanty
+LV|RB|2||Mike Washington
+LV|RB|3||Connor Heyward
+LV|RB|4||Dylan Laube
+LV|RB|5||Dare Ogunbowale
+LV|TE|1||Brock Bowers
+LV|TE|2||Michael Mayer
+LV|TE|3||Ian Thomas
+LV|TE|4||Albert Okwuegbunam
+LV|TE|4||Carter Runyon
+LV|WR|1|Z|Tre Tucker
+LV|WR|2|slot|Jalen Nailor
+LV|WR|3|Z|Malik Benson
+LV|WR|4|X|Jack Bech
+LV|WR|5|X|Dont'e Thornton
+MIA|QB|1||Malik Willis
+MIA|QB|2||Quinn Ewers
+MIA|QB|3||Cam Miller
+MIA|RB|1||De'Von Achane
+MIA|RB|2||Jaylen Wright
+MIA|RB|3||Ollie Gordon
+MIA|RB|4||Carlos Washington
+MIA|RB|5||Donovan Edwards
+MIA|TE|1||Greg Dulcich
+MIA|TE|2||Will Kacmarek
+MIA|TE|3||Ben Sims
+MIA|TE|4||Seydou Traore
+MIA|TE|5||Cole Turner
+MIA|WR|1|slot|Malik Washington
+MIA|WR|2|X|Jalen Tolbert
+MIA|WR|3|Z|Caleb Douglas
+MIA|WR|4|X|Chris Bell
+MIA|WR|5|slot|Jalen Reagor
+MIN|QB|1||Kyler Murray
+MIN|QB|2||J.J. McCarthy
+MIN|QB|3||Max Brosmer
+MIN|QB|4||Carson Wentz
+MIN|RB|1||Aaron Jones
+MIN|RB|2||Jordan Mason
+MIN|RB|3||Demond Claiborne
+MIN|RB|4||Zavier Scott
+MIN|RB|5||Max Bredeson
+MIN|TE|1||T.J. Hockenson
+MIN|TE|2||Josh Oliver
+MIN|TE|3||Gavin Bartholomew
+MIN|TE|4||Ben Yurosek
+MIN|WR|1|X|Justin Jefferson
+MIN|WR|2|Z|Jordan Addison
+MIN|WR|3|slot|Jauan Jennings
+MIN|WR|4|X|Tai Felton
+MIN|WR|5|slot|Myles Price
+NE|QB|1||Drake Maye
+NE|QB|2||Behren Morton
+NE|QB|3||Tommy DeVito
+NE|RB|1||TreVeyon Henderson
+NE|RB|2||Rhamondre Stevenson
+NE|RB|3||Jam Miller
+NE|RB|4||Lan Larison
+NE|RB|5||Reggie Gilliam
+NE|TE|1||Hunter Henry
+NE|TE|2||Eli Raridon
+NE|TE|3||CJ Dippre
+NE|TE|4||Julian Hill
+NE|TE|5||Jack Westover
+NE|WR|1|X|A.J. Brown
+NE|WR|2|Z|Romeo Doubs
+NE|WR|3|X|Kayshon Boutte
+NE|WR|4|slot|DeMario Douglas
+NE|WR|5|Z|Mack Hollins
+NO|QB|1||Tyler Shough
+NO|QB|2||Spencer Rattler
+NO|QB|3||Zach Wilson
+NO|RB|1||Travis Etienne
+NO|RB|2||Alvin Kamara
+NO|RB|3||Devin Neal
+NO|RB|4||Ty Chandler
+NO|RB|5||Audric Estime
+NO|TE|1||Juwan Johnson
+NO|TE|2||Noah Fant
+NO|TE|3||Oscar Delp
+NO|TE|4||Moliki Matavao
+NO|TE|5||Zaire Mitchell-Paden
+NO|WR|1|X|Chris Olave
+NO|WR|2|Z|Jordyn Tyson
+NO|WR|3|slot|Bub Means
+NO|WR|4|slot|Devaughn Vele
+NO|WR|5|X|Bryce Lance
+NYG|QB|1||Jaxson Dart
+NYG|QB|2||Jameis Winston
+NYG|QB|3||Brandon Allen
+NYG|QB|4||Jake Haener
+NYG|RB|1||Cam Skattebo
+NYG|RB|2||Tyrone Tracy
+NYG|RB|3||Najee Harris
+NYG|RB|4||Devin Singletary
+NYG|RB|5||Patrick Ricard
+NYG|TE|1||Isaiah Likely
+NYG|TE|2||Theo Johnson
+NYG|TE|3||Thomas Fidone
+NYG|TE|4||Chris Manhertz
+NYG|TE|5||Tanner Conner
+NYG|WR|1|X|Malik Nabers
+NYG|WR|2|Z|Darius Slayton
+NYG|WR|3|Z|Darnell Mooney
+NYG|WR|4|slot|Calvin Austin
+NYG|WR|5|X|Malachi Fields
+NYJ|QB|1||Geno Smith
+NYJ|QB|2||Cade Klubnik
+NYJ|QB|3||Brady Cook
+NYJ|QB|4||Bailey Zappe
+NYJ|RB|1||Breece Hall
+NYJ|RB|2||Braelon Allen
+NYJ|RB|3||Isaiah Davis
+NYJ|RB|4||Andrew Beck
+NYJ|RB|5||Kene Nwangwu
+NYJ|TE|1||Kenyon Sadiq
+NYJ|TE|2||Mason Taylor
+NYJ|TE|3||Jeremy Ruckert
+NYJ|TE|4||Jelani Woods
+NYJ|WR|1|X|Garrett Wilson
+NYJ|WR|2|Z|Adonai Mitchell
+NYJ|WR|3|slot|Omar Cooper
+NYJ|WR|4|slot|Isaiah Williams
+NYJ|WR|5|Z|Arian Smith
+PHI|QB|1||Jalen Hurts
+PHI|QB|2||Andy Dalton
+PHI|QB|3||Cole Payton
+PHI|QB|4||Tanner McKee
+PHI|RB|1||Saquon Barkley
+PHI|RB|2||Tank Bigsby
+PHI|RB|3||Will Shipley
+PHI|RB|4||Dameon Pierce
+PHI|RB|5||Carson Steele
+PHI|TE|1||Dallas Goedert
+PHI|TE|2||Eli Stowers
+PHI|TE|3||Grant Calcaterra
+PHI|TE|4||Johnny Mundt
+PHI|TE|5||Cameron Latu
+PHI|WR|1|X|DeVonta Smith
+PHI|WR|2|slot|Makai Lemon
+PHI|WR|3|Z|Dontayvion Wicks
+PHI|WR|4|slot|Marquise Brown
+PHI|WR|5|Z|Darius Cooper
+PIT|QB|1||Aaron Rodgers
+PIT|QB|2||Mason Rudolph
+PIT|QB|3||Will Howard
+PIT|QB|4||Drew Allar
+PIT|RB|1||Jaylen Warren
+PIT|RB|2||Rico Dowdle
+PIT|RB|3||Riley Nowakowski
+PIT|RB|4||Eli Heidenreich
+PIT|RB|5||Lew Nichols
+PIT|RB|5||Kaleb Johnson
+PIT|TE|1||Pat Freiermuth
+PIT|TE|2||Darnell Washington
+PIT|TE|3||Robert Tonyan
+PIT|TE|4||Jaheim Bell
+PIT|WR|1|X|DK Metcalf
+PIT|WR|2|Z|Michael Pittman
+PIT|WR|3|slot|Germie Bernard
+PIT|WR|4|X|Roman Wilson
+PIT|WR|5|Z|Ben Skowronek
+SEA|QB|1||Sam Darnold
+SEA|QB|2||Drew Lock
+SEA|QB|3||Jalen Milroe
+SEA|RB|1||Jadarian Price
+SEA|RB|2||Zach Charbonnet
+SEA|RB|3||Emanuel Wilson
+SEA|RB|4||George Holani
+SEA|RB|5||Jacardia Wright
+SEA|TE|1||AJ Barner
+SEA|TE|2||Elijah Arroyo
+SEA|TE|3||Nick Vannett
+SEA|TE|4||Eric Saubert
+SEA|TE|4||Nick Kallerup
+SEA|WR|1|X|Jaxon Smith-Njigba
+SEA|WR|2|Z|Rashid Shaheed
+SEA|WR|3|slot|Cooper Kupp
+SEA|WR|4|Z|Tory Horton
+SEA|WR|5|slot|Ricky White
+SF|QB|1||Brock Purdy
+SF|QB|2||Mac Jones
+SF|QB|3||Adrian Martinez
+SF|QB|4||Kurtis Rourke
+SF|RB|1||Christian McCaffrey
+SF|RB|2||Jordan James
+SF|RB|3||Kaelon Black
+SF|RB|4||Kyle Juszczyk
+SF|RB|5||Isaac Guerendo
+SF|TE|1||George Kittle
+SF|TE|2||Jake Tonges
+SF|TE|3||Luke Farrell
+SF|TE|4||Josiah Deguara
+SF|TE|5||Brayden Willis
+SF|WR|1|X|Mike Evans
+SF|WR|2|Z|Deebo Samuel
+SF|WR|3|X|De'Zhaun Stribling
+SF|WR|4|slot|Christian Kirk
+SF|WR|5|Z|Demarcus Robinson
+TB|QB|1||Baker Mayfield
+TB|QB|2||Jake Browning
+TB|QB|3||Connor Bazelak
+TB|QB|3||Jalon Daniels
+TB|RB|1||Bucky Irving
+TB|RB|2||Kenny Gainwell
+TB|RB|3||Sean Tucker
+TB|RB|4||Josh Williams
+TB|TE|1||Cade Otton
+TB|TE|2||Payne Durham
+TB|TE|3||Devin Culp
+TB|TE|4||Ko Kieft
+TB|TE|5||Bauer Sharp
+TB|WR|1|X|Emeka Egbuka
+TB|WR|2|slot|Chris Godwin
+TB|WR|3|Z|Jalen McMillan
+TB|WR|4|X|Ted Hurst
+TB|WR|5|Z|Tez Johnson
+TEN|QB|1||Cam Ward
+TEN|QB|2||Will Levis
+TEN|QB|3||Mitchell Trubisky
+TEN|QB|4||Hendon Hooker
+TEN|RB|1||Tony Pollard
+TEN|RB|2||Tyjae Spears
+TEN|RB|3||Nicholas Singleton
+TEN|RB|4||D'Ernest Johnson
+TEN|RB|5||Michael Carter
+TEN|TE|1||Gunnar Helm
+TEN|TE|2||Daniel Bellinger
+TEN|TE|3||Kylen Granson
+TEN|TE|4||David Martin-Robinson
+TEN|TE|4||Joel Wilson
+TEN|TE|5||Jaren Kanak
+TEN|WR|1|X|Carnell Tate
+TEN|WR|2|slot|Wan'Dale Robinson
+TEN|WR|3|Z|Calvin Ridley
+TEN|WR|4|X|Elic Ayomanor
+TEN|WR|5|slot|Chimere Dike
+WAS|QB|1||Jayden Daniels
+WAS|QB|2||Marcus Mariota
+WAS|QB|3||Sam Hartman
+WAS|QB|4||Athan Kaliakmanis
+WAS|RB|1||Jacory Croskey-Merritt
+WAS|RB|2||Rachaad White
+WAS|RB|3||Jeremy McNichols
+WAS|RB|4||Kaytron Allen
+WAS|RB|5||Craig Reynolds
+WAS|TE|1||Chig Okonkwo
+WAS|TE|2||John Bates
+WAS|TE|3||Ben Sinnott
+WAS|TE|4||Lawrence Cager
+WAS|TE|5||Tre' McKitty
+WAS|TE|5||Colson Yankoff
+WAS|WR|1|X|Terry McLaurin
+WAS|WR|2|Z|Stefon Diggs
+WAS|WR|3|slot|Antonio Williams
+WAS|WR|4|slot|Luke McCaffrey
+WAS|WR|5|X|Dyami Brown
+`.trim();
+
+const DEPTH = (function(){
+  const byTeamPos = {}, byName = new Map();
+  DEPTH_RAW.split(String.fromCharCode(10)).forEach(function(line){
+    const c = line.split('|');
+    const rec = {team:c[0], pos:c[1], rank:+c[2], slot:c[3], name:c[4]};
+    (byTeamPos[c[0]+'|'+c[1]] = byTeamPos[c[0]+'|'+c[1]] || []).push(rec);
+    byName.set(normName(c[4]) + '|' + c[1], rec);
+  });
+  return {byTeamPos:byTeamPos, byName:byName};
+})();
+
 const SCHEDULE_RAW = `
 ARI:LAC,SEA,SF,NYG,DET,LAR,DEN,DAL,SEA,LAR,KC,WAS,PHI,,NYJ,NO,LV,SF
 ATL:PIT,CAR,GB,NO,BAL,CHI,SF,TB,CIN,KC,,MIN,DET,CLE,WAS,TB,NO,CAR
@@ -2604,6 +3214,19 @@ function attachProjections(key){
     const idx = Math.min(pool.length-1,
       Math.max(0, Math.round(state.teams * starters) - 1));
     REPLACEMENT[pos] = pool[idx].proj;
+  });
+
+  /* The team's depth chart against the market's. A back the team lists first while
+     ADP has him third is the kind of gap worth a pick; the reverse is a warning. */
+  const marketRank = {};
+  PLAYERS.slice().sort(function(a,b){ return a.adp-b.adp; }).forEach(function(p){
+    const k = p.team + "|" + p.pos;
+    marketRank[k] = (marketRank[k] || 0) + 1;
+    p.marketRank = marketRank[k];
+    const d = DEPTH.byName.get(normName(p.name) + "|" + p.pos);
+    p.depthRank = d ? d.rank : null;
+    p.depthSlot = d ? d.slot : "";
+    p.depthGap = (d && p.marketRank) ? (p.marketRank - d.rank) : null;
   });
 
   computeSOS();
@@ -3421,6 +4044,20 @@ const posPill = p=>`<span class="pos ${p.pos}">${POS_LABEL[p.pos]}${
    it is the single most common reason a board is wrong on draft day. */
 const INJ_LABEL = {Questionable:"Q", Doubtful:"D", Out:"OUT", IR:"IR", PUP:"PUP",
                    Sus:"SUS", COV:"COV", DNR:"DNR", NA:"NA"};
+/* Only worth showing when the two disagree by a full slot or more. */
+function depthNote(p){
+  if(p.depthGap === null || p.depthGap === undefined) return "";
+  if(p.pos === "PK" || p.pos === "DEF") return "";
+  if(Math.abs(p.depthGap) < 1) return "";
+  const ahead = p.depthGap > 0;   // team ranks him higher than the market does
+  return ' <span class="chip ' + (ahead ? "sleeper" : "bust") +
+    '" title="' + esc(p.team) + " lists him " + p.pos + p.depthRank +
+    (p.depthSlot ? " (" + esc(p.depthSlot) + ")" : "") +
+    "; the market drafts him as their " + p.pos + p.marketRank +
+    '" style="padding:1px 5px; font-size:10px">' +
+    (ahead ? "team " + p.pos + p.depthRank : "behind " + p.pos + p.depthRank) + "</span>";
+}
+
 function injBadge(p){
   if(!p.inj) return "";
   const short = INJ_LABEL[p.inj] || String(p.inj).slice(0,3).toUpperCase();
@@ -3479,7 +4116,7 @@ function renderBoard(){
     <tr class="${gone.has(p.id)?"gone":""} ${p.tierTop&&state.filter!=="ALL"?"tier-top":""}" data-id="${p.id}">
       <td class="stripe ${p.pos}"></td>
       <td class="num muted">${p.adp.toFixed(1)}</td>
-      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}${adpGapNote(p)}</td>
+      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}${depthNote(p)}${adpGapNote(p)}</td>
       <td>${posPill(p)}</td>
       <td class="faint">${p.team}</td>
       <td class="num faint">${p.bye??"—"}</td>
@@ -4469,13 +5106,31 @@ function renderDepth(){
   $("#depthOut").innerHTML = names.map(t=>{
     const list = teams[t].slice().sort((a,b)=>a.adp-b.adp);
     const grp = pos=>{
+      const official = DEPTH.byTeamPos[t + "|" + pos] || [];
       const g = list.filter(p=>p.pos===pos);
-      if(!g.length) return "";
-      return `<div class="dgrp"><div class="glbl">${pos}</div>${
-        g.map((p,i)=>`<div class="dline ${i===0?"one":""}">
-          <span class="ord">${pos}${i+1}</span>
-          <span style="flex:1; min-width:0">${esc(p.name)}</span>
-          <span class="num faint">${p.adp.toFixed(0)}</span></div>`).join("")}</div>`;
+      if(!g.length && !official.length) return "";
+      /* Lead with what the team says, and note where the market disagrees. */
+      const seen = new Set();
+      const lines = official.map(function(d){
+        const p = g.find(function(x){ return normName(x.name) === normName(d.name); });
+        if(p) seen.add(p.id);
+        const gap = p && p.marketRank ? (p.marketRank - d.rank) : null;
+        return `<div class="dline ${d.rank===1?"one":""}">
+          <span class="ord">${pos}${d.rank}</span>
+          <span style="flex:1; min-width:0">${esc(d.name)}${
+            d.slot?` <span class="faint" style="font-size:10px">${esc(d.slot)}</span>`:""}${
+            gap && Math.abs(gap)>=1
+              ? ` <span class="${gap>0?"good":"bad"}" style="font-size:10px">mkt ${pos}${p.marketRank}</span>`
+              : ""}</span>
+          <span class="num faint">${p?p.adp.toFixed(0):"—"}</span></div>`;
+      });
+      const extra = g.filter(function(p){ return !seen.has(p.id); }).map(function(p){
+        return `<div class="dline">
+          <span class="ord faint">—</span>
+          <span style="flex:1; min-width:0" class="muted">${esc(p.name)}</span>
+          <span class="num faint">${p.adp.toFixed(0)}</span></div>`;
+      });
+      return `<div class="dgrp"><div class="glbl">${pos}</div>${lines.concat(extra).join("")}</div>`;
     };
     return `<div class="tcard">
       <h4>${t}<span class="bye">bye ${BYES[t]??"—"}</span></h4>
