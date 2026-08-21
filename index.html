@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 02:09 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 02:11 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -5584,14 +5584,19 @@ async function liveSyncTick(){
     }).filter(function(r){ return r.n; });
     const res = applyNames(rows.map(function(r){ return r.n; }), rows);
     renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
-    /* Whose turn it is now, in this league's own numbering. */
-    const upNext = teamOnClock(state.picks.length) + 1;
+    /* Whose turn it is now, in this league's own numbering - or nobody's, once every
+       slot is filled. Announcing a clock after the last pick is how a finished draft
+       ends up looking like it is still waiting on you. */
+    const done = state.picks.length >= totalPicks();
+    const upNext = done ? null : teamOnClock(state.picks.length) + 1;
     const mine = upNext === state.slot;
     liveSyncStatus(
       "Synced " + res.count + " picks at " + new Date().toLocaleTimeString() +
       (res.missed.length ? " (" + res.missed.length + " unmatched)" : "") +
-      (mine ? " - you are on the clock." : " - team " + upNext + " on the clock."),
-      mine ? "good" : "faint");
+      (done ? " - draft complete."
+            : mine ? " - you are on the clock."
+                   : " - team " + upNext + " on the clock."),
+      done ? "faint" : mine ? "good" : "faint");
   }catch(e){
     LIVE_SYNC.fails++;
     if(LIVE_SYNC.fails >= LIVE_MAX_FAILS){

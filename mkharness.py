@@ -1692,6 +1692,32 @@ harness = r'''
     clearPlaceholders();
   });
 
+  await astep("a-finished-draft-does-not-announce-a-clock",async function(){
+    /* Replaying a completed draft ended with "you are on the clock" after the final
+       pick. A finished draft must read as finished. */
+    setDraftId("sleeper12","999");
+    applyLeague("sleeper12");
+    state.picks=[]; state.sim=false;
+    var n=totalPicks();
+    var pool=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;});
+    var feed=[];
+    for(var i=0;i<n;i++){
+      var p=pool[i];
+      var c=(p?p.name:("Unknown Person "+i)).split(" ");
+      feed.push({pick_no:i+1, metadata:{first_name:c[0], last_name:c.slice(1).join(" ")}});
+    }
+    var real=window.fetch;
+    window.fetch=function(){ return Promise.resolve({ok:true,status:200,
+      json:function(){ return Promise.resolve(feed); }}); };
+    LIVE_SYNC={timer:null,key:"sleeper12",last:-1,fails:0,at:0};
+    try{ await liveSyncTick(); } finally { window.fetch=real; }
+    var msg=document.getElementById("liveMsg").textContent;
+    if(msg.indexOf("on the clock")>=0)
+      throw new Error("announced a clock after the last pick: "+msg);
+    if(msg.indexOf("complete")<0) throw new Error("did not say complete: "+msg);
+    clearPlaceholders();
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
