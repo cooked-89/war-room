@@ -1860,6 +1860,52 @@ harness = r'''
     });
   });
 
+  step("a-device-can-hand-its-setup-to-another",function(){
+    /* The app has read a #setup= link since it left the artifact, so nobody has to
+       retype a 19-digit draft id on a phone - but nothing ever wrote one, so the
+       honest answer to "how do I use this on my phone" was to assemble JSON by hand.
+       Round-trip it: build the link here, wipe the device, feed the link back. */
+    applyLeague("sleeper12");
+    setDraftId("sleeper12","1234567890123456789");
+    setDraftWhen("sleeper12","2026-08-28T18:30");
+    setDraftId("mfl12","");
+    setDraftWhen("mfl12","2026-08-29T12:30");
+    var url = setupLink();
+    if(!url) throw new Error("no link built");
+    if(url.indexOf("#setup=") < 0) throw new Error("not a setup link");
+
+    setDraftId("sleeper12","");
+    setDraftWhen("sleeper12","");
+    setDraftWhen("mfl12","");
+    if(draftIdFor("sleeper12")) throw new Error("wipe failed");
+
+    var res = applySetupHash(url.slice(url.indexOf("#")));
+    if(!res || res.error) throw new Error("link rejected: "+(res && res.error));
+    if(draftIdFor("sleeper12") !== "1234567890123456789")
+      throw new Error("draft id did not survive: "+draftIdFor("sleeper12"));
+    if(draftWhenFor("mfl12") !== "2026-08-29T12:30")
+      throw new Error("draft time did not survive: "+draftWhenFor("mfl12"));
+  });
+
+  step("the-order-link-carries-a-non-snake-order",function(){
+    /* His MFL order is the thing least worth retyping - 144 slots that are not a
+       snake after round two. */
+    applyLeague("mfl12");
+    var ord = [];
+    for(var i=0;i<144;i++) ord.push((i*5+3) % 12);      // deliberately not a snake
+    setDraftOrder(ord);
+    var url = orderLink();
+    if(!url) throw new Error("no order link built");
+    setDraftOrder(null);
+    var res = applyMflHash(url.slice(url.indexOf("#")));
+    if(!res || res.error) throw new Error("order link rejected: "+(res && res.error));
+    if(!state.order || state.order.length !== 144)
+      throw new Error("order did not survive: "+(state.order && state.order.length));
+    for(var k=0;k<144;k++)
+      if(state.order[k] !== ord[k]) throw new Error("slot "+k+" changed");
+    setDraftOrder(null);
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */

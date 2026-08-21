@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 04:31 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 05:53 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -463,6 +463,23 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
               <span id="orderMsg" style="font-size:12.5px"></span>
             </div>
           </div>
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
+            <div class="eyebrow" style="margin-bottom:5px">Move to another device</div>
+            <p class="faint" style="margin:0 0 7px; font-size:12.5px">
+              Settings live on this device only. Open either link on your phone and it
+              arrives set up — nothing is uploaded anywhere.
+            </p>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <button class="btn sm primary" id="copySetup">Copy settings link</button>
+              <button class="btn sm" id="copyOrder">Copy draft-order link</button>
+              <span id="copyMsg" class="faint" style="font-size:12px"></span>
+            </div>
+            <input id="handoffLink" readonly value=""
+              style="width:100%; margin-top:8px; font-family:var(--mono); font-size:11px;
+                     padding:7px; border:1px solid var(--line-2); border-radius:6px;
+                     background:var(--surface-2); color:var(--ink)">
+          </div>
+
           <div id="bmWrap" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
             <div class="eyebrow" style="margin-bottom:5px">One-click sync</div>
             <p class="faint" style="margin:0 0 7px; font-size:12.5px">
@@ -3713,6 +3730,55 @@ function loadOrderFromText(text){
   return {ok:"Loaded a fixed order repeating for all " + state.rounds + " rounds."};
 }
 
+/* Build a link that configures another device the way this one is configured. Only
+   the two fields applySetupHash accepts, and only for leagues that actually have
+   something saved. */
+function setupLink(){
+  const payload = {};
+  Object.keys(LEAGUES).forEach(function(k){
+    const id = draftIdFor(k), when = draftWhenFor(k);
+    if(id || when){
+      payload[k] = {};
+      if(id) payload[k].id = id;
+      if(when) payload[k].when = when;
+    }
+  });
+  if(!Object.keys(payload).length) return null;
+  return location.origin + location.pathname + "#setup=" +
+         encodeURIComponent(JSON.stringify(payload));
+}
+
+function orderLink(){
+  const ord = state.orderByLeague[state.league];
+  if(!ord || !ord.length) return null;
+  return location.origin + location.pathname + "#mfl=" +
+         encodeURIComponent(JSON.stringify({league:state.league, order:ord, names:[]}));
+}
+
+function showHandoff(url, what){
+  const box = $("#handoffLink"), msg = $("#copyMsg");
+  if(!box) return;
+  if(!url){
+    if(msg) msg.textContent = what === "order"
+      ? "No custom draft order loaded for this league."
+      : "Nothing saved on this device yet — add a draft ID or time first.";
+    box.value = "";
+    return;
+  }
+  box.value = url;
+  box.focus(); box.select();
+  let copied = false;
+  try{ copied = document.execCommand("copy"); }catch(e){}
+  if(navigator.clipboard && !copied){
+    navigator.clipboard.writeText(url).then(function(){
+      if(msg) msg.textContent = "Copied. Open it on the other device.";
+    }, function(){});
+  }
+  if(msg) msg.textContent = copied
+    ? "Copied. Open it on the other device."
+    : "Select the text above and copy it.";
+}
+
 function refreshBookmarklet(key){
   const field = $("#bmCode");
   if(!field) return;
@@ -5916,6 +5982,9 @@ $("#bmCopy").addEventListener("click",function(){
 $("#syncWipe").addEventListener("click",function(){
   $("#syncIn").value=""; $("#syncMsg").textContent="";
 });
+$("#copySetup").addEventListener("click", function(){ showHandoff(setupLink(), "setup"); });
+$("#copyOrder").addEventListener("click", function(){ showHandoff(orderLink(), "order"); });
+
 $("#liveOn").addEventListener("change", function(e){
   if(e.target.checked) liveSyncStart();
   else { liveSyncStop(""); liveSyncStatus("Live sync off.", "faint"); }
