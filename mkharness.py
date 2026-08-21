@@ -1952,6 +1952,28 @@ harness = r'''
     delete ROOM.mfl12; saveRoom(); setDraftOrder(null);
   });
 
+  step("an-old-saved-bookmarklet-says-so",function(){
+    /* A bookmarklet is COPIED into the browser bookmarks, so changing the generator
+       does nothing to the bookmark already saved. The app accepted the old payload
+       silently, which is the worst case: everything looks like it worked. */
+    delete ROOM.mfl12; saveRoom();
+    applyLeague("mfl12");
+    var ord=[]; for(var i=0;i<24;i++) ord.push(i%12);
+    var old=applyMflHash("#mfl="+encodeURIComponent(JSON.stringify(
+      {league:"mfl12", order:ord, names:[]})));           // no teams, no version
+    if(!old || old.error) throw new Error("rejected: "+(old&&old.error));
+    if(!old.stale) throw new Error("did not flag an old bookmarklet payload");
+    showMflResult(old);
+    if(document.getElementById("setupMsg").textContent.indexOf("older") < 0)
+      throw new Error("no hint shown to the user");
+
+    var teams=[]; for(var j=0;j<12;j++) teams.push("Squad "+(j+1));
+    var cur=applyMflHash("#mfl="+encodeURIComponent(JSON.stringify(
+      {league:"mfl12", order:ord, names:[], teams:teams, v:BM_VERSION})));
+    if(cur.stale) throw new Error("flagged a current payload as stale");
+    delete ROOM.mfl12; saveRoom(); setDraftOrder(null);
+  });
+
   step("room-names-are-scoped-to-one-league",function(){
     /* Twelve MFL managers must not become the ten ESPN ones. */
     delete ROOM.mfl12; delete ROOM.espn10;
@@ -2008,6 +2030,82 @@ harness = r'''
     if(code.indexOf("L=99999") < 0) throw new Error("stored league id not used");
     setDraftId("mfl12", had);
     refreshBookmarklet("mfl12");
+  });
+
+  step("news-accumulates-across-fetches",function(){
+    /* ESPN only ever returns the last ~50 articles, about two days. Holding what we
+       have already seen is the whole point: opened daily, a snapshot becomes a
+       fortnight of coverage. */
+    NEWS = []; saveNews(); indexNews();
+    var now = Date.now();
+    var first = mergeNews([
+      {id:"a1", head:"First story", desc:"", by:"A Writer", url:"", at:now-3600000, who:["Jahmyr Gibbs"]},
+      {id:"a2", head:"Second story", desc:"", by:"", url:"", at:now-7200000, who:[]}
+    ]);
+    if(first !== 2) throw new Error("first merge added "+first);
+    /* A later fetch overlapping the first must not duplicate. */
+    var second = mergeNews([
+      {id:"a2", head:"Second story", desc:"", by:"", url:"", at:now-7200000, who:[]},
+      {id:"a3", head:"Third story", desc:"", by:"", url:"", at:now-1800000, who:["Puka Nacua"]}
+    ]);
+    if(second !== 1) throw new Error("second merge added "+second+", expected 1");
+    if(NEWS.length !== 3) throw new Error("holding "+NEWS.length+" stories, expected 3");
+    if(NEWS[0].id !== "a3") throw new Error("not sorted newest first: "+NEWS[0].id);
+    NEWS = []; saveNews(); indexNews();
+  });
+
+  step("news-drops-what-is-too-old",function(){
+    NEWS = []; saveNews(); indexNews();
+    var now = Date.now();
+    mergeNews([
+      {id:"fresh", head:"Recent", desc:"", by:"", url:"", at:now-86400000, who:[]},
+      {id:"stale", head:"Ancient", desc:"", by:"", url:"", at:now-60*86400000, who:[]}
+    ]);
+    if(NEWS.some(function(x){ return x.id==="stale"; }))
+      throw new Error("kept a two-month-old story");
+    if(!NEWS.some(function(x){ return x.id==="fresh"; }))
+      throw new Error("dropped a story from yesterday");
+    NEWS = []; saveNews(); indexNews();
+  });
+
+  step("news-attaches-to-the-right-player",function(){
+    applyLeague("mfl12");
+    NEWS = []; saveNews(); indexNews();
+    var gibbs = PLAYERS.filter(function(p){ return p.name.indexOf("Gibbs")>=0; })[0];
+    var other = PLAYERS.filter(function(p){ return p.name.indexOf("Gibbs")<0; })[0];
+    if(!gibbs) throw new Error("no test player on the board");
+    mergeNews([{id:"n1", head:"Something about him", desc:"", by:"ESPN", url:"",
+                at:Date.now()-3600000, who:[gibbs.name]}]);
+    if(newsFor(gibbs).length !== 1)
+      throw new Error("story did not attach: "+newsFor(gibbs).length);
+    if(newsFor(other).length !== 0)
+      throw new Error("story attached to the wrong player");
+    if(newsBadge(gibbs).indexOf("news") < 0) throw new Error("no badge for a fresh story");
+    if(newsBadge(other) !== "") throw new Error("badge on a player with no news");
+    /* Old news must not wear a fresh badge. */
+    NEWS = []; indexNews();
+    mergeNews([{id:"n2", head:"Old item", desc:"", by:"", url:"",
+                at:Date.now()-14*86400000, who:[gibbs.name]}]);
+    if(newsBadge(gibbs) !== "") throw new Error("a fortnight-old story still badged as news");
+    NEWS = []; saveNews(); indexNews();
+  });
+
+  step("news-panel-says-so-when-it-has-nothing",function(){
+    /* An empty feed must read as empty rather than as a player having no news. */
+    NEWS = []; saveNews(); indexNews();
+    renderNews();
+    var t = document.getElementById("newsOut").textContent;
+    if(t.indexOf("No news loaded") < 0)
+      throw new Error("empty feed did not say so: "+t.slice(0,60));
+    mergeNews([{id:"z1", head:"Unrelated person signs deal", desc:"", by:"", url:"",
+                at:Date.now(), who:["Nobody On This Board"]}]);
+    var box = document.getElementById("newsMine");
+    box.checked = true; renderNews();
+    t = document.getElementById("newsOut").textContent;
+    if(t.indexOf("Nothing here mentions") < 0)
+      throw new Error("filtered-to-empty did not say so: "+t.slice(0,70));
+    box.checked = false;
+    NEWS = []; saveNews(); indexNews(); renderNews();
   });
 
   step("only-one-poller-exists",function(){

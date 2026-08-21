@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 06:18 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 12:41 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -628,6 +628,26 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
 
 <!-- ================= INTEL ================= -->
 <section class="panel" id="p-intel" hidden>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-h">
+      <h3>Latest news</h3>
+      <span class="eyebrow" id="newsMeta">from ESPN</span>
+    </div>
+    <div class="card-b">
+      <p class="faint" style="margin:0 0 9px; font-size:12.5px">
+        ESPN's public feed, refreshed each time you open this and kept for three weeks.
+        Their window is only the last couple of days, so it fills out the more often
+        you look. Items about players on your board are marked.
+      </p>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap">
+        <button class="btn sm primary" id="newsRefresh">Refresh now</button>
+        <label class="fld" style="font-size:13px">
+          <input type="checkbox" id="newsMine"> Only players on my board
+        </label>
+      </div>
+      <div id="newsOut"></div>
+    </div>
+  </div>
   <div class="toolbar">
     <div class="seg" id="tagfilter">
       <button data-t="ALL" aria-pressed="true">All</button>
@@ -3440,6 +3460,102 @@ function attachProjections(key){
    rules exactly like the Sleeper rows. */
 /* Manager names, per league, on this device only. Never baked into the source:
    the published board carries no league identity and this must not change that. */
+/* ---------- news ----------
+   ESPN's public feed, which sends Access-Control-Allow-Origin * and tags every
+   article with the athletes it concerns. Their window is only the last ~50
+   articles, so what arrives is merged into what we already hold and pruned at
+   three weeks: opened daily, the board accumulates a fortnight of coverage.
+
+   Stored as {id, head, desc, by, url, at, who[]} - no article text is copied,
+   only the headline, ESPN's own one-line description, and a link back. */
+const NEWS_KEY = "warroom.news.v1";
+const NEWS_MAX = 400;
+const NEWS_KEEP_DAYS = 21;
+let NEWS = [];                        // newest first
+let NEWS_BY_PLAYER = new Map();       // normName -> [item, ...]
+
+function loadNews(){
+  try{
+    const raw = localStorage.getItem(NEWS_KEY);
+    NEWS = raw ? (JSON.parse(raw) || []) : [];
+  }catch(e){ NEWS = []; }
+  indexNews();
+}
+
+function indexNews(){
+  NEWS_BY_PLAYER = new Map();
+  NEWS.forEach(function(it){
+    (it.who || []).forEach(function(nm){
+      const k = normName(nm);
+      if(!NEWS_BY_PLAYER.has(k)) NEWS_BY_PLAYER.set(k, []);
+      NEWS_BY_PLAYER.get(k).push(it);
+    });
+  });
+}
+
+function saveNews(){
+  try{ localStorage.setItem(NEWS_KEY, JSON.stringify(NEWS.slice(0, NEWS_MAX))); }catch(e){}
+}
+
+function mergeNews(items){
+  const seen = new Set(NEWS.map(function(x){ return x.id; }));
+  let added = 0;
+  items.forEach(function(it){
+    if(!it || !it.id || seen.has(it.id)) return;
+    seen.add(it.id); NEWS.push(it); added++;
+  });
+  const cutoff = Date.now() - NEWS_KEEP_DAYS * 86400000;
+  NEWS = NEWS.filter(function(x){ return x.at && x.at >= cutoff; })
+             .sort(function(a,b){ return b.at - a.at; })
+             .slice(0, NEWS_MAX);
+  saveNews();
+  indexNews();
+  return added;
+}
+
+async function refreshNews(){
+  if(!window.LIVE_CAPABLE) return 0;
+  try{
+    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50",
+                          {cache:"no-store"});
+    if(!r.ok) return 0;
+    const d = await r.json();
+    const items = (d.articles || []).map(function(a){
+      const who = [];
+      (a.categories || []).forEach(function(c){
+        if(c.type === "athlete" && c.description) who.push(c.description);
+      });
+      const web = (a.links && a.links.web && a.links.web.href) || "";
+      return {id: String(a.id || a.headline || ""),
+              head: a.headline || "",
+              desc: a.description || "",
+              by: a.byline || "",
+              url: web,
+              at: Date.parse(a.published || a.lastModified || "") || Date.now(),
+              who: who};
+    }).filter(function(x){ return x.id && x.head; });
+    const added = mergeNews(items);
+    renderNews();
+    if(added) renderAll();
+    return added;
+  }catch(e){ return 0; }
+}
+
+/* Items about a player, newest first. */
+function newsFor(p){
+  return NEWS_BY_PLAYER.get(normName(p.name)) || [];
+}
+
+function newsBadge(p){
+  const hits = newsFor(p);
+  if(!hits.length) return "";
+  const days = Math.floor((Date.now() - hits[0].at) / 86400000);
+  if(days > 7) return "";
+  const when = days <= 0 ? "today" : days === 1 ? "yesterday" : days + "d ago";
+  return ' <span class="chip" title="' + esc(hits[0].head) + " — ESPN, " + when +
+    '" style="padding:1px 5px; font-size:10px">news ' + esc(when) + "</span>";
+}
+
 const ROOM_KEY = "warroom.room.v1";
 let ROOM = {};                       // leagueKey -> [name, name, ...] by team index
 
@@ -3837,6 +3953,11 @@ function showHandoff(url, what){
     : "Select the text above and copy it.";
 }
 
+/* Bumped whenever the generated bookmarklet learns to send something new. A
+   payload arriving without it came from a bookmark saved before that change, and
+   the only cure is re-copying it - so say so rather than quietly doing less. */
+const BM_VERSION = 2;
+
 function refreshBookmarklet(key){
   const field = $("#bmCode");
   if(!field) return;
@@ -3866,7 +3987,7 @@ function refreshBookmarklet(key){
       "var fr=(lg.league.franchises.franchise||[]).slice().sort(function(a,b){" +
       "return (+a.id)-(+b.id)});" +
       "var tm=fr.map(function(f){return f.name||''});" +
-      "var pay={league:'mfl12',order:ord,names:names,teams:tm};" +
+      "var pay={league:'mfl12',order:ord,names:names,teams:tm,v:" + BM_VERSION + "};" +
       "window.open('" + location.origin + location.pathname +
       "#mfl='+encodeURIComponent(JSON.stringify(pay)),'warroom');" +
       "}catch(e){alert('War Room sync failed: '+e.message)}})()";
@@ -4471,7 +4592,7 @@ function renderBoard(){
     <tr class="${gone.has(p.id)?"gone":""} ${p.tierTop&&state.filter!=="ALL"?"tier-top":""}" data-id="${p.id}">
       <td class="stripe ${p.pos}"></td>
       <td class="num muted">${p.adp.toFixed(1)}</td>
-      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}${depthNote(p)}${adpGapNote(p)}</td>
+      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}${newsBadge(p)}${depthNote(p)}${adpGapNote(p)}</td>
       <td>${posPill(p)}</td>
       <td class="faint">${p.team}</td>
       <td class="num faint">${p.bye??"—"}</td>
@@ -5527,6 +5648,53 @@ function renderDepth(){
 
 /* ---------- Intel ---------- */
 let intelTag="ALL";
+function renderNews(){
+  const el = $("#newsOut");
+  if(!el) return;
+  const meta = $("#newsMeta");
+  const onlyMine = $("#newsMine") && $("#newsMine").checked;
+
+  /* Which of these players are actually on this league's board. */
+  const onBoard = function(nm){ return NORM.get(normName(nm)) || null; };
+
+  let list = NEWS.slice();
+  if(onlyMine) list = list.filter(function(it){
+    return (it.who || []).some(onBoard);
+  });
+
+  if(meta) meta.textContent = NEWS.length
+    ? NEWS.length + " stories held · from ESPN"
+    : "from ESPN";
+
+  if(!list.length){
+    el.innerHTML = '<p class="muted" style="margin:0; font-size:13px">' +
+      (NEWS.length ? "Nothing here mentions a player on this board yet."
+                   : "No news loaded yet — press Refresh.") + "</p>";
+    return;
+  }
+
+  el.innerHTML = list.slice(0, 40).map(function(it){
+    const days = Math.floor((Date.now() - it.at) / 86400000);
+    const when = days <= 0 ? "today" : days === 1 ? "yesterday" : days + " days ago";
+    const mine = (it.who || []).map(onBoard).filter(Boolean);
+    const tags = mine.length
+      ? '<div style="margin-top:4px">' + mine.slice(0, 6).map(function(p){
+          return '<span class="chip" style="padding:1px 6px; font-size:10px">' +
+                 esc(p.pos) + " " + esc(p.name) + "</span>";
+        }).join(" ") + "</div>"
+      : "";
+    return '<div style="padding:9px 0; border-bottom:1px solid var(--line)">' +
+      '<div style="font-size:13.5px; font-weight:600">' +
+        (it.url ? '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' +
+                  esc(it.head) + "</a>" : esc(it.head)) + "</div>" +
+      (it.desc ? '<div class="faint" style="font-size:12.5px; margin-top:3px">' +
+                 esc(it.desc) + "</div>" : "") +
+      '<div class="faint" style="font-size:11px; margin-top:3px">' +
+        esc(when) + (it.by ? " · " + esc(it.by) : "") + " · ESPN</div>" +
+      tags + "</div>";
+  }).join("");
+}
+
 function renderIntel(){
   const rows = PLAYERS.filter(p=>p.tags.length && (intelTag==="ALL"||p.tags.includes(intelTag)));
   $("#intelBody").innerHTML = rows.map(p=>`
@@ -5591,7 +5759,7 @@ function renderAll(){
   if(state.tab==="team") renderTeam();
   if(state.tab==="week") renderWeek();
   if(state.tab==="depth") renderDepth();
-  if(state.tab==="intel") renderIntel();
+  if(state.tab==="intel"){ renderIntel(); renderNews(); }
 }
 
 document.querySelectorAll(".tab").forEach(b=>{
@@ -5984,6 +6152,8 @@ function applyMflHash(rawHash){
   const key = (typeof d.league === "string" && LEAGUES[d.league]) ? d.league : "mfl12";
   if(state.league !== key) applyLeague(key);
   const named = Array.isArray(d.teams) ? setRoomNames(key, d.teams) : 0;
+  /* No version and no names means the bookmark predates both. */
+  const staleBookmark = (+d.v || 0) < BM_VERSION;
 
   const nameNote = named ? (named + " team names") : "";
   let orderNote = "";
@@ -6003,7 +6173,14 @@ function applyMflHash(rawHash){
   }
   if(!orderNote && !pickNote && !nameNote)
     return {error:"That link carried nothing usable."};
-  return {applied:[orderNote, pickNote, nameNote].filter(Boolean).join(" and ")};
+  return {applied:[orderNote, pickNote, nameNote].filter(Boolean).join(" and "),
+          stale: staleBookmark && !named};
+}
+
+function mflStaleHint(){
+  return '<div style="margin-top:6px" class="warn">Your saved bookmarklet is an older ' +
+    'version, so no team names came across. Copy the bookmarklet below again and ' +
+    'replace the one in your bookmarks.</div>';
 }
 
 function showMflResult(res){
@@ -6014,7 +6191,8 @@ function showMflResult(res){
   bar.className = "alert" + (res.error ? " hot" : "");
   bar.innerHTML = res.error
     ? '<span class="bad">' + esc(res.error) + "</span>"
-    : "<div><b>Synced from MyFantasyLeague.</b> Loaded " + esc(res.applied) + ".</div>";
+    : "<div><b>Synced from MyFantasyLeague.</b> Loaded " + esc(res.applied) + "." +
+      (res.stale ? mflStaleHint() : "") + "</div>";
 }
 
 function showSetupResult(res){
@@ -6118,6 +6296,19 @@ $("#roomClear").addEventListener("click", function(){
   if(msg) msg.textContent = "Cleared — back to numbers.";
   renderAll();
 });
+
+$("#newsRefresh").addEventListener("click", function(){
+  const el = $("#newsOut");
+  if(el) el.innerHTML = '<p class="muted" style="margin:0; font-size:13px">Fetching…</p>';
+  refreshNews().then(function(n){
+    renderNews();
+    const meta = $("#newsMeta");
+    if(meta && n !== undefined) meta.textContent =
+      NEWS.length + " stories held · " + (n ? n + " new" : "nothing new") + " · from ESPN";
+  });
+});
+
+$("#newsMine").addEventListener("change", renderNews);
 
 $("#copySetup").addEventListener("click", function(){ showHandoff(setupLink(), "setup"); });
 $("#copyOrder").addEventListener("click", function(){ showHandoff(orderLink(), "order"); });
@@ -6315,6 +6506,7 @@ load();
 LIVEDATA = loadCachedLive();      // instant, offline-safe; network refresh follows
 EXTRA_PROJ = loadCachedExtra();
 loadRoom();
+loadNews();
 const savedPicks = state.picks;
 applyLeague(state.league);
 state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });
@@ -6350,6 +6542,7 @@ if(mflRes && !mflRes.error){
 }
 buildStamp();
 if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
+if(window.LIVE_CAPABLE) setTimeout(refreshNews, 900);
 /* Re-check on wake: a laptop shut for two days should not open a stale board. */
 if(window.LIVE_CAPABLE){
   setTimeout(checkForUpdate, 4000);
