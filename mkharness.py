@@ -53,6 +53,16 @@ harness = r'''
     catch(e){ log.push(n+":FAIL "+(e && e.message || e)); }
   }
 
+  /* Placeholders are global and persist in byId, so a test that creates them must put
+     the world back or it changes every simulation that runs after it. */
+  function clearPlaceholders(){
+    OFFBOARD = new Map();
+    state.picks = [];
+    state.byLeague = {};
+    applyLeague(state.league);
+    state.picks = [];
+  }
+
   function playOut(){
     var need=Math.min(state.teams*state.rounds,PLAYERS.length), g=0;
     runSim();
@@ -1362,12 +1372,18 @@ harness = r'''
   });
 
   step("import-reports-unmatched",function(){
+    /* An unmatched name is still reported, but no longer vanishes: it holds its slot
+       so every pick after it keeps its true number. */
     applyLeague("espn10"); state.picks=[];
-    document.getElementById("syncIn").value="Bijan Robinson\nNot A Real Person";
+    document.getElementById("syncIn").value="Bijan Robinson" + String.fromCharCode(10) + "Not A Real Person";
     document.getElementById("syncGo").click();
-    if(state.picks.length!==1) throw new Error("picks "+state.picks.length);
+    if(state.picks.length!==2)
+      throw new Error("2 picks happened, recorded "+state.picks.length);
+    var second=byId.get(state.picks[1].playerId);
+    if(!second || !second.offBoard) throw new Error("second pick is not a placeholder");
     if(document.getElementById("syncMsg").textContent.indexOf("Not matched")<0)
       throw new Error("no unmatched warning");
+    clearPlaceholders();
   });
 
   step("import-rejects-garbage",function(){
@@ -1587,6 +1603,60 @@ harness = r'''
     if(sourcesLoaded().indexOf("fbg") < 0) throw new Error("source not registered");
     EXTRA_PROJ = {};
     applyLeague("sleeper12");
+  });
+
+  step("an-unmatched-pick-still-holds-its-slot",function(){
+    /* Replaying a real completed draft: 168 picks in, 130 matched, and the clock was
+       announced from 130. Every pick of a player outside the board shifted the draft
+       backwards - the one number you cannot have wrong on the night. */
+    applyLeague("sleeper12");
+    var top=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;}).slice(0,5);
+    var names=[top[0].name, top[1].name, "Someone Not On This Board",
+               top[2].name, "Another Unknown Person", top[3].name];
+    var res=applyNames(names);
+    if(state.picks.length!==6)
+      throw new Error("6 picks happened, board recorded "+state.picks.length);
+    if(res.missed.length!==2)
+      throw new Error("expected 2 reported unmatched, got "+res.missed.length);
+    /* The known players must sit at their true overall positions. */
+    if(byId.get(state.picks[3].playerId).name !== top[2].name)
+      throw new Error("pick 4 is "+byId.get(state.picks[3].playerId).name+", expected "+top[2].name);
+    if(byId.get(state.picks[5].playerId).name !== top[3].name)
+      throw new Error("pick 6 landed wrong");
+    /* And attribution follows the true slot, not a compressed one. */
+    if(state.picks[5].team !== teamOnClock(5))
+      throw new Error("pick 6 attributed to the wrong team");
+    clearPlaceholders();
+  });
+
+  step("placeholders-never-reach-the-board",function(){
+    applyLeague("sleeper12");
+    applyNames(["Totally Unknown Person", PLAYERS[0].name]);
+    var ph=state.picks.filter(function(pk){
+      var p=byId.get(pk.playerId); return p && p.offBoard; });
+    if(!ph.length) throw new Error("no placeholder was created");
+    var id=ph[0].playerId;
+    if(PLAYERS.some(function(p){ return p.id===id; }))
+      throw new Error("placeholder leaked into PLAYERS");
+    if(NORM.get(normName("Totally Unknown Person")))
+      throw new Error("placeholder became draftable by name");
+    if(recommend().some(function(r){ return r.p.id===id; }))
+      throw new Error("placeholder was recommended");
+    var lu=bestLineup(rosterOf(myIdx())).slots;
+    if(lu.some(function(s){ return s && s.p && s.p.id===id; }))
+      throw new Error("placeholder was put in a lineup");
+    clearPlaceholders();
+  });
+
+  step("placeholders-survive-a-league-switch",function(){
+    applyLeague("sleeper12");
+    applyNames([PLAYERS[0].name, "Ghost Of Drafts Past", PLAYERS[1].name]);
+    var before=state.picks.length;
+    applyLeague("espn10");
+    applyLeague("sleeper12");
+    if(state.picks.length!==before)
+      throw new Error("came back with "+state.picks.length+" of "+before+" picks");
+    clearPlaceholders();
   });
 
   step("only-one-poller-exists",function(){

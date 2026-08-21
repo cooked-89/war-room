@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 01:55 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 02:03 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -2874,6 +2874,30 @@ const INTEL = {
 /* ---------- build player objects ---------- */
 let PLAYERS=[], byId=new Map(), byName=new Map(), TIER_SIZE={}, LINEUP=[], NEED={}, AI_NEED={};
 let NORM = new Map();
+/* Picks the board does not know. Deliberately NOT in PLAYERS: they must never be
+   draftable, recommended, tiered or startable - they exist only so that pick 47 is
+   still pick 47. Keyed by normalised name so a re-import reuses the same record
+   rather than multiplying placeholders. */
+let OFFBOARD = new Map();
+
+function offBoardFor(name, pos, team){
+  const k = normName(name);
+  if(OFFBOARD.has(k)) return OFFBOARD.get(k);
+  const rec = {id:"off:" + k, name:name, pos:pos || "NA", team:team || "",
+               adp:999, proj:0, vor:0, tier:0, tags:[], note:"", offBoard:true};
+  OFFBOARD.set(k, rec);
+  /* Usable straight away: rosterOf and every render resolve picks through byId, so a
+     placeholder that only appears at the next league rebuild would render as a hole
+     in the middle of a live draft. */
+  byId.set(rec.id, rec);
+  return rec;
+}
+
+/* buildLeague rebuilds byId from PLAYERS, which would drop the placeholders and
+   desync the board again on the next league switch or reload. */
+function reattachOffBoard(){
+  OFFBOARD.forEach(function(rec){ byId.set(rec.id, rec); });
+}
 let REPLACEMENT = {}, STARTERS = {};
 
 /* The draft id identifies a specific private league, so it lives on the device
@@ -3010,6 +3034,7 @@ function buildLeague(key){
   });
   attachProjections(key);
   byId   = new Map(PLAYERS.map(function(p){ return [p.id,p]; }));
+  reattachOffBoard();
   byName = new Map(PLAYERS.map(function(p){ return [p.name,p]; }));
   PLAYERS.forEach(function(p){
     const hit = INTEL[p.name];
@@ -3045,7 +3070,9 @@ function save(){
       adpSource:state.adpSource, projSource:state.projSource, liveOn:state.liveOn,
       slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
       picks:state.picks, byLeague:state.byLeague, orderByLeague:state.orderByLeague,
-      star:[...state.star], avoid:[...state.avoid]
+      star:[...state.star], avoid:[...state.avoid],
+      offBoard:[...OFFBOARD.values()].map(function(r){
+        return {name:r.name, pos:r.pos, team:r.team}; })
     }));
   }catch(e){/* private mode — run without persistence */}
 }
@@ -3058,6 +3085,12 @@ function load(){
     if(typeof d.useLiveAdp==="boolean") state.useLiveAdp=d.useLiveAdp;
     if(d.adpSource) state.adpSource=d.adpSource;
     if(d.projSource) state.projSource=d.projSource;
+    /* Rebuild placeholders BEFORE picks are restored, or the byId filter below
+       drops them and the board silently shifts back. */
+    if(Array.isArray(d.offBoard)) d.offBoard.forEach(function(r){
+      if(r && typeof r.name === "string") offBoardFor(r.name, r.pos, r.team);
+    });
+    reattachOffBoard();
     if(typeof d.liveOn === "boolean") state.liveOn = d.liveOn;
     if(d.slot) state.slot=d.slot;
     // clamp: an older save may hold a round count no longer offered
@@ -5411,13 +5444,20 @@ function parseImport(text){
    one-click hash sync both funnel through here. The incoming list is the whole
    truth — existing picks are discarded rather than merged, so a re-sync can
    never double-count or drift out of order. */
-function applyNames(names){
+function applyNames(names, meta){
   state.picks = [];
   const missed = [];
-  names.forEach(function(nm){
+  names.forEach(function(nm, i){
     if(state.picks.length >= totalPicks()) return;
     const p = NORM.get(normName(nm));
-    if(!p){ missed.push(nm); return; }
+    if(!p){
+      /* Unknown to the board, but it still happened. Hold the slot so every pick
+         after it keeps its true number. */
+      missed.push(nm);
+      const m = (meta && meta[i]) || {};
+      makePick(offBoardFor(nm, m.pos, m.team).id);
+      return;
+    }
     if(takenIds().has(p.id)) return;
     makePick(p.id);
   });
@@ -5496,11 +5536,12 @@ async function liveSyncTick(){
       return;
     }
     j.sort(function(a,b){ return (a.pick_no||0) - (b.pick_no||0); });
-    const names = j.map(function(p){
+    const rows = j.map(function(p){
       const m = p.metadata || {};
-      return ((m.first_name || "") + " " + (m.last_name || "")).trim();
-    }).filter(Boolean);
-    const res = applyNames(names);
+      return {n:((m.first_name || "") + " " + (m.last_name || "")).trim(),
+              pos:(m.position || ""), team:(m.team || "")};
+    }).filter(function(r){ return r.n; });
+    const res = applyNames(rows.map(function(r){ return r.n; }), rows);
     renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
     /* Whose turn it is now, in this league's own numbering. */
     const upNext = teamOnClock(state.picks.length) + 1;
