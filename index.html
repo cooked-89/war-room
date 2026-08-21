@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 04:19 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 04:31 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -395,9 +395,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
       <select id="slot"></select>
     </label>
     <label class="fld">Rounds
-      <select id="rounds">
-        <option>13</option><option>14</option><option selected>15</option><option>16</option>
-      </select>
+      <select id="rounds"><!-- filled per league; a 12-round league must be expressible --></select>
     </label>
     <label class="fld"><input type="checkbox" id="simOn" checked> Auto-draft the other <span id="simCount">9</span></label>
     <button class="btn" id="undo">Undo</button>
@@ -5956,7 +5954,21 @@ function applyLeague(key){
     const o=document.createElement("option"); o.value=i; o.textContent=i; slotSel.appendChild(o);
   }
   slotSel.value = state.slot;
-  $("#rounds").value = state.rounds;
+  /* Offer a span around what this league actually drafts. Hard-coded options once
+     left the control blank for a 12-round league, where the only available action
+     was to silently make his draft longer than it is. */
+  const rSel = $("#rounds");
+  if(rSel){
+    const lo = Math.max(1, Math.min(L.rounds, state.rounds) - 3);
+    const hi = Math.max(L.rounds, state.rounds) + 4;
+    rSel.innerHTML = "";
+    for(let n=lo; n<=hi; n++){
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      rSel.appendChild(o);
+    }
+    rSel.value = state.rounds;
+  }
   $("#league").value = key;
   $("#simCount").textContent = L.teams-1;
   const lw = $("#liveWrap");

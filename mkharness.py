@@ -1846,6 +1846,20 @@ harness = r'''
     state.picks=[]; state.sim=false;
   });
 
+  step("rounds-control-can-express-every-league",function(){
+    /* The options were hard-coded 13-16, so for a 12-round league the control rendered
+       blank and the only thing it could do was lengthen the draft. */
+    Object.keys(LEAGUES).forEach(function(k){
+      applyLeague(k);
+      var sel=document.getElementById("rounds");
+      var vals=[].slice.call(sel.options).map(function(o){ return +o.value; });
+      if(vals.indexOf(state.rounds)<0)
+        throw new Error(k+" drafts "+state.rounds+" rounds, options are "+vals.join(","));
+      if(+sel.value !== state.rounds)
+        throw new Error(k+" shows "+JSON.stringify(sel.value)+", expected "+state.rounds);
+    });
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
