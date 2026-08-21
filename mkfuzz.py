@@ -3,7 +3,7 @@
 import io, sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-src = open("draft-room.html", encoding="utf-8").read()
+src = open(__import__("sys").argv[1] if len(__import__("sys").argv)>1 else "draft-room.html", encoding="utf-8").read()
 guard = ('<script>window.__errs=[];window.addEventListener("error",function(e){'
          'window.__errs.push(e.message+" @"+e.lineno+":"+e.colno)});'
          'window.addEventListener("unhandledrejection",function(e){'

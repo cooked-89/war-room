@@ -1,7 +1,26 @@
 import io, sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-src = open("draft-room.html", encoding="utf-8").read()
+# Which file to test. The default is the app source, but the BUILT artifact must also
+# be testable: live sync once lived only in build_pwa.py's tail, invisible to this
+# harness, and a duplicate implementation was written because of it. Test what ships.
+#   python mkharness.py            -> test-harness.html      from draft-room.html
+#   python mkharness.py --built    -> test-harness-built.html from pwa/index.html
+import sys as _sys
+_built = "--built" in _sys.argv
+_srcfile = "pwa/index.html" if _built else "draft-room.html"
+_outfile = "test-harness-built.html" if _built else "test-harness.html"
+src = open(_srcfile, encoding="utf-8").read()
+if _built:
+    # The built file is a whole document; strip the wrapper so the harness can append
+    # to the same page, and neutralise the service worker, which has no business
+    # running inside a test.
+    src = src.replace('navigator.serviceWorker.register("sw.js")', 'Promise.resolve()')
+    for _tag in ("<!doctype html>", "<!DOCTYPE html>"):
+        src = src.replace(_tag, "")
+    src = src.replace("</body>", "").replace("</html>", "")
+    # the harness supplies its own network posture
+    src = src.replace("window.LIVE_CAPABLE = true;", "window.LIVE_CAPABLE = false;")
 guard = '<script>window.__errs=[];window.addEventListener("error",function(e){window.__errs.push(e.message+" @line "+e.lineno+":"+e.colno)});</script>\n'
 
 MFL_FIXTURE = '{"draftResults": {"draftUnit": {"draftPick": [{"round": "01", "pick": "01", "franchise": "0012", "player": ""}, {"round": "01", "pick": "02", "franchise": "0008", "player": ""}, {"round": "01", "pick": "03", "franchise": "0006", "player": ""}, {"round": "01", "pick": "04", "franchise": "0002", "player": ""}, {"round": "01", "pick": "05", "franchise": "0009", "player": ""}, {"round": "01", "pick": "06", "franchise": "0004", "player": ""}, {"round": "01", "pick": "07", "franchise": "0005", "player": ""}, {"round": "01", "pick": "08", "franchise": "0001", "player": ""}, {"round": "01", "pick": "09", "franchise": "0011", "player": ""}, {"round": "01", "pick": "10", "franchise": "0007", "player": ""}, {"round": "01", "pick": "11", "franchise": "0010", "player": ""}, {"round": "01", "pick": "12", "franchise": "0003", "player": ""}, {"round": "02", "pick": "01", "franchise": "0003", "player": ""}, {"round": "02", "pick": "02", "franchise": "0010", "player": ""}, {"round": "02", "pick": "03", "franchise": "0007", "player": ""}, {"round": "02", "pick": "04", "franchise": "0011", "player": ""}, {"round": "02", "pick": "05", "franchise": "0001", "player": ""}, {"round": "02", "pick": "06", "franchise": "0005", "player": ""}, {"round": "02", "pick": "07", "franchise": "0004", "player": ""}, {"round": "02", "pick": "08", "franchise": "0009", "player": ""}, {"round": "02", "pick": "09", "franchise": "0002", "player": ""}, {"round": "02", "pick": "10", "franchise": "0006", "player": ""}, {"round": "02", "pick": "11", "franchise": "0008", "player": ""}, {"round": "02", "pick": "12", "franchise": "0012", "player": ""}, {"round": "03", "pick": "01", "franchise": "0003", "player": ""}, {"round": "03", "pick": "02", "franchise": "0008", "player": ""}, {"round": "03", "pick": "03", "franchise": "0005", "player": ""}, {"round": "03", "pick": "04", "franchise": "0012", "player": ""}, {"round": "03", "pick": "05", "franchise": "0009", "player": ""}, {"round": "03", "pick": "06", "franchise": "0010", "player": ""}, {"round": "03", "pick": "07", "franchise": "0006", "player": ""}, {"round": "03", "pick": "08", "franchise": "0007", "player": ""}, {"round": "03", "pick": "09", "franchise": "0002", "player": ""}, {"round": "03", "pick": "10", "franchise": "0004", "player": ""}, {"round": "03", "pick": "11", "franchise": "0011", "player": ""}, {"round": "03", "pick": "12", "franchise": "0001", "player": ""}, {"round": "04", "pick": "01", "franchise": "0006", "player": ""}, {"round": "04", "pick": "02", "franchise": "0010", "player": ""}, {"round": "04", "pick": "03", "franchise": "0005", "player": ""}, {"round": "04", "pick": "04", "franchise": "0011", "player": ""}, {"round": "04", "pick": "05", "franchise": "0001", "player": ""}, {"round": "04", "pick": "06", "franchise": "0009", "player": ""}, {"round": "04", "pick": "07", "franchise": "0008", "player": ""}, {"round": "04", "pick": "08", "franchise": "0007", "player": ""}, {"round": "04", "pick": "09", "franchise": "0004", "player": ""}, {"round": "04", "pick": "10", "franchise": "0012", "player": ""}, {"round": "04", "pick": "11", "franchise": "0003", "player": ""}, {"round": "04", "pick": "12", "franchise": "0002", "player": ""}, {"round": "05", "pick": "01", "franchise": "0002", "player": ""}, {"round": "05", "pick": "02", "franchise": "0003", "player": ""}, {"round": "05", "pick": "03", "franchise": "0012", "player": ""}, {"round": "05", "pick": "04", "franchise": "0004", "player": ""}, {"round": "05", "pick": "05", "franchise": "0007", "player": ""}, {"round": "05", "pick": "06", "franchise": "0008", "player": ""}, {"round": "05", "pick": "07", "franchise": "0009", "player": ""}, {"round": "05", "pick": "08", "franchise": "0001", "player": ""}, {"round": "05", "pick": "09", "franchise": "0011", "player": ""}, {"round": "05", "pick": "10", "franchise": "0005", "player": ""}, {"round": "05", "pick": "11", "franchise": "0010", "player": ""}, {"round": "05", "pick": "12", "franchise": "0006", "player": ""}, {"round": "06", "pick": "01", "franchise": "0003", "player": ""}, {"round": "06", "pick": "02", "franchise": "0008", "player": ""}, {"round": "06", "pick": "03", "franchise": "0004", "player": ""}, {"round": "06", "pick": "04", "franchise": "0001", "player": ""}, {"round": "06", "pick": "05", "franchise": "0011", "player": ""}, {"round": "06", "pick": "06", "franchise": "0002", "player": ""}, {"round": "06", "pick": "07", "franchise": "0006", "player": ""}, {"round": "06", "pick": "08", "franchise": "0012", "player": ""}, {"round": "06", "pick": "09", "franchise": "0007", "player": ""}, {"round": "06", "pick": "10", "franchise": "0005", "player": ""}, {"round": "06", "pick": "11", "franchise": "0010", "player": ""}, {"round": "06", "pick": "12", "franchise": "0009", "player": ""}, {"round": "07", "pick": "01", "franchise": "0009", "player": ""}, {"round": "07", "pick": "02", "franchise": "0010", "player": ""}, {"round": "07", "pick": "03", "franchise": "0005", "player": ""}, {"round": "07", "pick": "04", "franchise": "0007", "player": ""}, {"round": "07", "pick": "05", "franchise": "0012", "player": ""}, {"round": "07", "pick": "06", "franchise": "0006", "player": ""}, {"round": "07", "pick": "07", "franchise": "0002", "player": ""}, {"round": "07", "pick": "08", "franchise": "0011", "player": ""}, {"round": "07", "pick": "09", "franchise": "0001", "player": ""}, {"round": "07", "pick": "10", "franchise": "0004", "player": ""}, {"round": "07", "pick": "11", "franchise": "0008", "player": ""}, {"round": "07", "pick": "12", "franchise": "0003", "player": ""}, {"round": "08", "pick": "01", "franchise": "0012", "player": ""}, {"round": "08", "pick": "02", "franchise": "0005", "player": ""}, {"round": "08", "pick": "03", "franchise": "0002", "player": ""}, {"round": "08", "pick": "04", "franchise": "0010", "player": ""}, {"round": "08", "pick": "05", "franchise": "0008", "player": ""}, {"round": "08", "pick": "06", "franchise": "0006", "player": ""}, {"round": "08", "pick": "07", "franchise": "0011", "player": ""}, {"round": "08", "pick": "08", "franchise": "0007", "player": ""}, {"round": "08", "pick": "09", "franchise": "0003", "player": ""}, {"round": "08", "pick": "10", "franchise": "0009", "player": ""}, {"round": "08", "pick": "11", "franchise": "0004", "player": ""}, {"round": "08", "pick": "12", "franchise": "0001", "player": ""}, {"round": "09", "pick": "01", "franchise": "0001", "player": ""}, {"round": "09", "pick": "02", "franchise": "0004", "player": ""}, {"round": "09", "pick": "03", "franchise": "0009", "player": ""}, {"round": "09", "pick": "04", "franchise": "0003", "player": ""}, {"round": "09", "pick": "05", "franchise": "0007", "player": ""}, {"round": "09", "pick": "06", "franchise": "0011", "player": ""}, {"round": "09", "pick": "07", "franchise": "0006", "player": ""}, {"round": "09", "pick": "08", "franchise": "0008", "player": ""}, {"round": "09", "pick": "09", "franchise": "0010", "player": ""}, {"round": "09", "pick": "10", "franchise": "0002", "player": ""}, {"round": "09", "pick": "11", "franchise": "0005", "player": ""}, {"round": "09", "pick": "12", "franchise": "0012", "player": ""}, {"round": "10", "pick": "01", "franchise": "0001", "player": ""}, {"round": "10", "pick": "02", "franchise": "0011", "player": ""}, {"round": "10", "pick": "03", "franchise": "0010", "player": ""}, {"round": "10", "pick": "04", "franchise": "0008", "player": ""}, {"round": "10", "pick": "05", "franchise": "0007", "player": ""}, {"round": "10", "pick": "06", "franchise": "0012", "player": ""}, {"round": "10", "pick": "07", "franchise": "0006", "player": ""}, {"round": "10", "pick": "08", "franchise": "0004", "player": ""}, {"round": "10", "pick": "09", "franchise": "0009", "player": ""}, {"round": "10", "pick": "10", "franchise": "0003", "player": ""}, {"round": "10", "pick": "11", "franchise": "0005", "player": ""}, {"round": "10", "pick": "12", "franchise": "0002", "player": ""}, {"round": "11", "pick": "01", "franchise": "0002", "player": ""}, {"round": "11", "pick": "02", "franchise": "0005", "player": ""}, {"round": "11", "pick": "03", "franchise": "0003", "player": ""}, {"round": "11", "pick": "04", "franchise": "0009", "player": ""}, {"round": "11", "pick": "05", "franchise": "0004", "player": ""}, {"round": "11", "pick": "06", "franchise": "0006", "player": ""}, {"round": "11", "pick": "07", "franchise": "0012", "player": ""}, {"round": "11", "pick": "08", "franchise": "0007", "player": ""}, {"round": "11", "pick": "09", "franchise": "0008", "player": ""}, {"round": "11", "pick": "10", "franchise": "0010", "player": ""}, {"round": "11", "pick": "11", "franchise": "0011", "player": ""}, {"round": "11", "pick": "12", "franchise": "0001", "player": ""}, {"round": "12", "pick": "01", "franchise": "0009", "player": ""}, {"round": "12", "pick": "02", "franchise": "0001", "player": ""}, {"round": "12", "pick": "03", "franchise": "0004", "player": ""}, {"round": "12", "pick": "04", "franchise": "0011", "player": ""}, {"round": "12", "pick": "05", "franchise": "0012", "player": ""}, {"round": "12", "pick": "06", "franchise": "0003", "player": ""}, {"round": "12", "pick": "07", "franchise": "0007", "player": ""}, {"round": "12", "pick": "08", "franchise": "0006", "player": ""}, {"round": "12", "pick": "09", "franchise": "0002", "player": ""}, {"round": "12", "pick": "10", "franchise": "0008", "player": ""}, {"round": "12", "pick": "11", "franchise": "0005", "player": ""}, {"round": "12", "pick": "12", "franchise": "0010", "player": ""}]}}}'
@@ -15,9 +34,24 @@ def fixture_js():
 
 harness = r'''
 <script>
-(function(){
+(async function(){
   var log=[];
-  function step(n,f){ try{ f(); log.push(n+":ok"); }catch(e){ log.push(n+":FAIL "+e.message); } }
+  function step(n,f){
+    try{
+      var r=f();
+      /* A test that returns a promise would otherwise be logged ok before it ran -
+         the same class of hollow assertion that let a dead switch ship. Refuse it. */
+      if(r && typeof r.then === "function"){
+        log.push(n+":FAIL async body passed to the sync step(); use astep()");
+        return;
+      }
+      log.push(n+":ok");
+    }catch(e){ log.push(n+":FAIL "+e.message); }
+  }
+  async function astep(n,f){
+    try{ await f(); log.push(n+":ok"); }
+    catch(e){ log.push(n+":FAIL "+(e && e.message || e)); }
+  }
 
   function playOut(){
     var need=Math.min(state.teams*state.rounds,PLAYERS.length), g=0;
@@ -1378,6 +1412,185 @@ harness = r'''
     if(withTwo<3) throw new Error("only "+withTwo+"/3 slots got two QBs");
   });
 
+  /* ---- live sync ----
+     The Live sync box shipped once with no listener behind it: it ticked, looked on,
+     and the board never moved. These assert the wiring exists and behaves, because a
+     silently dead switch during a live draft is the worst failure this app has. */
+  step("live-sync-switch-is-wired",function(){
+    if(typeof liveSyncStart !== "function") throw new Error("no liveSyncStart");
+    if(typeof liveSyncTick  !== "function") throw new Error("no liveSyncTick");
+    if(typeof liveSyncStop  !== "function") throw new Error("no liveSyncStop");
+    var box=document.getElementById("liveOn");
+    if(!box) throw new Error("no liveOn checkbox");
+    /* Prove the handler is attached by firing the event and watching for an effect. */
+    window.LIVE_CAPABLE=true;
+    setDraftId("sleeper12","");
+    applyLeague("sleeper12");
+    box.checked=true;
+    box.dispatchEvent(new Event("change"));
+    if(box.checked) throw new Error("no draft id, yet the switch stayed on");
+  });
+
+  step("live-sync-refuses-without-a-draft-id",function(){
+    setDraftId("sleeper12","");
+    applyLeague("sleeper12");
+    liveSyncStart();
+    if(state.liveOn) throw new Error("started with no draft id");
+    var m=document.getElementById("liveMsg");
+    if(!m || m.textContent.indexOf("draft ID")<0) throw new Error("no useful message");
+  });
+
+  await astep("live-sync-applies-picks-from-the-feed",async function(){
+    setDraftId("sleeper12","999");
+    applyLeague("sleeper12");
+    state.picks=[]; state.sim=false;
+    var top=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;}).slice(0,5);
+    var real=window.fetch;
+    window.fetch=function(){ return Promise.resolve({ok:true, status:200, json:function(){
+      return Promise.resolve(top.map(function(p,i){
+        var c=p.name.split(" ");
+        return {pick_no:i+1, metadata:{first_name:c[0], last_name:c.slice(1).join(" ")}};
+      }));
+    }}); };
+    LIVE_SYNC={timer:null,key:"sleeper12",last:-1,fails:0,at:0};
+    try{ await liveSyncTick(); } finally { window.fetch=real; }
+    if(state.picks.length!==5) throw new Error("applied "+state.picks.length+" of 5");
+  });
+
+  await astep("live-sync-ignores-a-quiet-feed",async function(){
+    /* When the pick count has not moved there is nothing to do, and re-applying would
+       rebuild the whole board fifteen seconds apart for no reason. Spy on the apply
+       path rather than the outcome: an unchanged board looks identical either way, so
+       only the absence of the work proves the skip is real. */
+    setDraftId("sleeper12","999");
+    applyLeague("sleeper12");
+    state.picks=[]; state.sim=false;
+    var top=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;}).slice(0,3);
+    var feed=top.map(function(p,i){
+      var c=p.name.split(" ");
+      return {pick_no:i+1, metadata:{first_name:c[0], last_name:c.slice(1).join(" ")}};
+    });
+    var real=window.fetch, calls=0;
+    window.fetch=function(){ calls++; return Promise.resolve({ok:true,status:200,
+      json:function(){ return Promise.resolve(feed); }}); };
+    var realApply=window.applyNames, applies=0;
+    window.applyNames=function(n){ applies++; return realApply(n); };
+    LIVE_SYNC={timer:null,key:"sleeper12",last:-1,fails:0,at:0};
+    try{
+      await liveSyncTick();          // first read: three new picks, should apply
+      if(applies!==1) throw new Error("first read applied "+applies+" times");
+      if(state.picks.length!==3) throw new Error("first read gave "+state.picks.length+" picks");
+      await liveSyncTick();          // same three: should do nothing
+      if(applies!==1) throw new Error("re-applied an unchanged feed");
+      if(state.picks.length!==3) throw new Error("quiet tick disturbed the board");
+    } finally { window.fetch=real; window.applyNames=realApply; }
+    if(calls!==2) throw new Error("expected two requests, got "+calls);
+  });
+
+  await astep("live-sync-gives-up-after-repeated-failures",async function(){
+    var real=window.fetch;
+    window.fetch=function(){ return Promise.reject(new Error("offline")); };
+    setDraftId("sleeper12","999");
+    LIVE_SYNC={timer:null,key:"sleeper12",last:-1,fails:0,at:0};
+    state.liveOn=true;
+    try{
+      for(var i=0;i<5;i++) await liveSyncTick();
+    } finally { window.fetch=real; }
+    if(state.liveOn) throw new Error("kept trying forever");
+  });
+
+  await astep("empty-feed-does-not-wipe-a-hand-entered-board",async function(){
+    /* Before a draft opens, Sleeper answers with an empty array. Feeding that to
+       applyNames would clear picks someone typed in while waiting - which is exactly
+       when they would be typing them in. */
+    setDraftId("sleeper12","999");
+    applyLeague("sleeper12");
+    state.picks=[]; state.sim=false;
+    var top=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;}).slice(0,4);
+    applyNames(top.map(function(p){ return p.name; }));
+    if(state.picks.length!==4) throw new Error("setup failed: "+state.picks.length+" picks");
+    var real=window.fetch;
+    window.fetch=function(){ return Promise.resolve({ok:true,status:200,
+      json:function(){ return Promise.resolve([]); }}); };
+    LIVE_SYNC={timer:null,key:"sleeper12",last:-1,fails:0,at:0};
+    try{ await liveSyncTick(); } finally { window.fetch=real; }
+    if(state.picks.length!==4)
+      throw new Error("empty feed wiped the board: "+state.picks.length+" picks left");
+    var m=document.getElementById("liveMsg");
+    if(!m || m.textContent.indexOf("not started")<0)
+      throw new Error("no explanation shown");
+  });
+
+  await astep("two-drafts-the-same-night-do-not-contaminate-each-other",async function(){
+    /* Sleeper opens 6:30 and ESPN 7:30 on the 28th, so both boards are live at once and
+       he will be switching between them every few minutes. An earlier build wiped picks
+       on every switch. This asserts the whole round trip: draft A, switch, draft B,
+       switch back, with a poller running against A the entire time. */
+    setDraftId("sleeper12","999");
+    applyLeague("sleeper12");
+    state.picks=[]; state.sim=false;
+    var byAdp=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;});
+    var feed=byAdp.slice(0,6).map(function(p,i){
+      var c=p.name.split(" ");
+      return {pick_no:i+1, metadata:{first_name:c[0], last_name:c.slice(1).join(" ")}};
+    });
+    var real=window.fetch;
+    window.fetch=function(){ return Promise.resolve({ok:true,status:200,
+      json:function(){ return Promise.resolve(feed); }}); };
+    LIVE_SYNC={timer:null,key:"sleeper12",last:-1,fails:0,at:0};
+    try{ await liveSyncTick(); } finally { window.fetch=real; }
+    var sleeperPicks=state.picks.length;
+    var sleeperNames=state.picks.map(function(pk){ return byId.get(pk.playerId).name; }).join("|");
+    if(sleeperPicks!==6) throw new Error("sleeper board has "+sleeperPicks+" of 6");
+
+    /* Over to the offline ESPN draft, entered by hand. */
+    applyLeague("espn10");
+    if(state.picks.length!==0) throw new Error("espn board opened with sleeper picks on it");
+    var espnPick=byAdp.slice(20,24).map(function(p){ return p.name; });
+    applyNames(espnPick);
+    if(state.picks.length!==4) throw new Error("espn board took "+state.picks.length+" of 4");
+    var espnNames=state.picks.map(function(pk){ return byId.get(pk.playerId).name; }).join("|");
+
+    /* Back to Sleeper: its six picks must still be there, unchanged. */
+    applyLeague("sleeper12");
+    if(state.picks.length!==6)
+      throw new Error("sleeper board came back with "+state.picks.length+" picks, not 6");
+    if(state.picks.map(function(pk){ return byId.get(pk.playerId).name; }).join("|")!==sleeperNames)
+      throw new Error("sleeper board came back with different players");
+
+    /* And ESPN is still intact too. */
+    applyLeague("espn10");
+    if(state.picks.map(function(pk){ return byId.get(pk.playerId).name; }).join("|")!==espnNames)
+      throw new Error("espn board was altered by the round trip");
+
+    /* The poller must not have followed us to ESPN. */
+    if(LIVE_SYNC.timer) throw new Error("poller still running on the wrong league");
+  });
+
+  step("only-one-poller-exists",function(){
+    /* Two implementations were once bound to the same checkbox, both polling and both
+       writing state.picks. Anything named like a second one is a regression. */
+    if(typeof window.livePoll === "function" || typeof window.liveToggle === "function")
+      throw new Error("a second poller is present");
+  });
+
+  step("league-switch-stops-the-poller",function(){
+    LIVE_SYNC={timer:setInterval(function(){},100000),key:"sleeper12",last:3,fails:0,at:0};
+    applyLeague("espn10");
+    if(LIVE_SYNC.timer) throw new Error("poller survived a league switch");
+    if(LIVE_SYNC.key==="sleeper12") throw new Error("still pointed at the old draft");
+  });
+
+  step("live-sync-only-offered-where-a-feed-exists",function(){
+    window.LIVE_CAPABLE=true;
+    applyLeague("mfl12");
+    if(!document.getElementById("liveWrap").hidden)
+      throw new Error("offered live sync for a league with no public feed");
+    applyLeague("sleeper12");
+    if(document.getElementById("liveWrap").hidden)
+      throw new Error("hid live sync for Sleeper");
+  });
+
   var pre=document.createElement("pre"); pre.id="TESTLOG";
   pre.textContent=log.join(" | ")+"  ||ERRS:"+(window.__errs||[]).join(";");
   document.body.appendChild(pre);
@@ -1385,5 +1598,5 @@ harness = r'''
 </script>
 '''
 
-open("test-harness.html","w",encoding="utf-8").write(guard + src + fixture_js() + harness + '\n<script>\n/* Independent of the suite: if the harness itself dies, say why. */\nsetTimeout(function(){\n  if(document.getElementById("TESTLOG")) return;\n  var pre=document.createElement("pre"); pre.id="CRASHLOG";\n  pre.textContent = "HARNESS DID NOT FINISH\nerrors: " +\n    ((window.__errs && window.__errs.length) ? window.__errs.join(" | ") : "(none recorded)");\n  document.body.appendChild(pre);\n}, 60000);\n</script>\n')
-print("harness written")
+open(_outfile,"w",encoding="utf-8").write(guard + src + fixture_js() + harness + '\n<script>\n/* Independent of the suite: if the harness itself dies, say why. */\nsetTimeout(function(){\n  if(document.getElementById("TESTLOG")) return;\n  var pre=document.createElement("pre"); pre.id="CRASHLOG";\n  pre.textContent = "HARNESS DID NOT FINISH\nerrors: " +\n    ((window.__errs && window.__errs.length) ? window.__errs.join(" | ") : "(none recorded)");\n  document.body.appendChild(pre);\n}, 60000);\n</script>\n')
+print("harness written:", _outfile, "from", _srcfile)
