@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 01:09 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 01:13 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -5477,11 +5477,18 @@ async function liveSyncTick(){
     LIVE_SYNC.fails = 0;
     LIVE_SYNC.at = Date.now();
     if(j.length === LIVE_SYNC.last){
-      liveSyncStatus("Watching - " + j.length + " picks in, checked just now.", "faint");
+      liveSyncStatus("Up to date - " + j.length + " picks, checked " +
+                     new Date().toLocaleTimeString() + ".", "faint");
       return;
     }
     LIVE_SYNC.last = j.length;
-    j.sort(function(a,b){ return a.pick_no - b.pick_no; });
+    if(!j.length){
+      /* An empty feed means the draft has not started. Running that through
+         applyNames would clear a board someone imported by hand while waiting. */
+      liveSyncStatus("Connected - the draft has not started yet.", "faint");
+      return;
+    }
+    j.sort(function(a,b){ return (a.pick_no||0) - (b.pick_no||0); });
     const names = j.map(function(p){
       const m = p.metadata || {};
       return ((m.first_name || "") + " " + (m.last_name || "")).trim();
@@ -5492,7 +5499,7 @@ async function liveSyncTick(){
     const upNext = teamOnClock(state.picks.length) + 1;
     const mine = upNext === state.slot;
     liveSyncStatus(
-      "Synced " + res.count + " picks" +
+      "Synced " + res.count + " picks at " + new Date().toLocaleTimeString() +
       (res.missed.length ? " (" + res.missed.length + " unmatched)" : "") +
       (mine ? " - you are on the clock." : " - team " + upNext + " on the clock."),
       mine ? "good" : "faint");
@@ -5935,65 +5942,9 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-/* ---------- live draft sync ----------
-   The whole reason this app left the artifact sandbox: Sleeper's API is
-   CORS-open, so the page can read the draft itself. Poll while the toggle is on,
-   apply only when the pick count actually changes, and never let a failed
-   request wipe a board that is already correct. */
-var LIVE = { timer: null, lastCount: -1, fails: 0 };
-
-function liveStatus(msg, cls) {
-  var el = document.getElementById("liveMsg");
-  if (el) el.innerHTML = cls ? '<span class="' + cls + '">' + msg + "</span>" : msg;
-}
-
-async function livePoll() {
-  var L = LEAGUES[state.league];
-  var id = (typeof draftIdFor === "function") ? draftIdFor(state.league) : "";
-  if (!L || !L.liveFeed) return;
-  if (!id) { liveStatus("Enter your draft ID above, then tick Live sync.", "warn"); return; }
-  try {
-    var r = await fetch("https://api.sleeper.app/v1/draft/" + id + "/picks", { cache: "no-store" });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    var j = await r.json();
-    LIVE.fails = 0;
-    if (j.length === LIVE.lastCount) {
-      liveStatus("Up to date — " + j.length + " picks · " + new Date().toLocaleTimeString(), "faint");
-      return;
-    }
-    LIVE.lastCount = j.length;
-    j.sort(function (a, b) { return (a.pick_no || 0) - (b.pick_no || 0); });
-    var names = j.map(function (p) {
-      return ((p.metadata && p.metadata.first_name || "") + " " + (p.metadata && p.metadata.last_name || "")).trim();
-    }).filter(Boolean);
-    if (!names.length) { liveStatus("Connected — draft has not started yet.", "faint"); return; }
-    var res = applyNames(names);
-    renderCliffs(); renderAll();
-    liveStatus("Live — " + res.count + " picks in" +
-      (res.missed.length ? " (" + res.missed.length + " unmatched)" : "") +
-      " · " + new Date().toLocaleTimeString(), "good");
-  } catch (e) {
-    LIVE.fails++;
-    liveStatus("Can't reach Sleeper (attempt " + LIVE.fails + "). Keeping the board you have.", "warn");
-  }
-}
-
-function liveToggle(on) {
-  clearInterval(LIVE.timer); LIVE.timer = null;
-  if (!on) { liveStatus("Live sync off.", "faint"); return; }
-  LIVE.lastCount = -1;
-  liveStatus("Connecting…", "faint");
-  livePoll();
-  LIVE.timer = setInterval(livePoll, 15000);
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-  var lw = document.getElementById("liveWrap");
-  if (lw) lw.hidden = !(LEAGUES[state.league] && LEAGUES[state.league].liveFeed);
-  var bm = document.getElementById("bmWrap"); if (bm) bm.hidden = true;
-  var box = document.getElementById("liveOn");
-  if (box) box.addEventListener("change", function (e) { liveToggle(e.target.checked); });
-});
+/* Live draft sync lives in the app source, not here, so the test harness can
+   reach it. This build only has to declare that it is allowed to use the network,
+   which it does in the head. */
 </script>
 </body>
 </html>
