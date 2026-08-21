@@ -428,6 +428,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
             <label class="fld" style="font-size:13.5px; color:var(--ink); flex-wrap:wrap">
               <input type="checkbox" id="liveOn"> <strong>Live sync</strong> — read this draft from Sleeper every 15s
             </label>
+            <div id="liveMsg" style="font-size:12.5px; margin-top:6px"></div>
             <div style="display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap">
               <label class="fld" style="flex:1; min-width:190px">
                 Draft ID
@@ -3024,7 +3025,7 @@ const state = {
   filter:"ALL", query:"", hideGone:false, onlyStar:false,
   star:new Set(), avoid:new Set(),
   league:"espn10", teams:10, slot:1, rounds:15, sim:true,
-  sortBy:"adp", useLiveAdp:false, adpSource:"blend", projSource:"blend",
+  sortBy:"adp", useLiveAdp:false, adpSource:"blend", projSource:"blend", liveOn:false,
   tradeOut:new Set(), tradeIn:new Set(),
   byLeague:{},        // league key -> {picks, seed, slot} so drafts survive a switch
   order:null,         // explicit team index per overall pick, or null for a snake
@@ -3039,7 +3040,7 @@ function save(){
     stashLeague();
     localStorage.setItem(LS, JSON.stringify({
       league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp,
-      adpSource:state.adpSource, projSource:state.projSource,
+      adpSource:state.adpSource, projSource:state.projSource, liveOn:state.liveOn,
       slot:state.slot, rounds:state.rounds, sim:state.sim, seed:state.seed,
       picks:state.picks, byLeague:state.byLeague, orderByLeague:state.orderByLeague,
       star:[...state.star], avoid:[...state.avoid]
@@ -3055,6 +3056,7 @@ function load(){
     if(typeof d.useLiveAdp==="boolean") state.useLiveAdp=d.useLiveAdp;
     if(d.adpSource) state.adpSource=d.adpSource;
     if(d.projSource) state.projSource=d.projSource;
+    if(typeof d.liveOn === "boolean") state.liveOn = d.liveOn;
     if(d.slot) state.slot=d.slot;
     // clamp: an older save may hold a round count no longer offered
     if(d.rounds) state.rounds=Math.max(13, Math.min(16, d.rounds));
@@ -5395,6 +5397,95 @@ function runImport(){
   renderAll();
 }
 
+/* Poll the host for picks while the draft is running.
+
+   Only Sleeper is polled: it answers with Access-Control-Allow-Origin *, so the
+   request works from this origin. The other three hosts do not, and no amount of
+   client-side code changes that - they stay on the bookmarklet.
+
+   Deliberately conservative: it re-reads the whole pick list rather than tracking a
+   cursor, because a draft can have picks reversed or traded and a full re-read is
+   always correct. Applying is skipped unless the count actually moved, so a quiet
+   fifteen seconds costs one request and no re-render. */
+const LIVE_POLL_MS = 15000;
+const LIVE_MAX_FAILS = 4;
+let LIVE_SYNC = {timer:null, key:null, last:-1, fails:0, at:0};
+
+function liveSyncStatus(msg, cls){
+  const el = $("#liveMsg");
+  if(el) el.innerHTML = cls ? '<span class="' + cls + '">' + esc(msg) + "</span>" : esc(msg);
+}
+
+function liveSyncStop(why){
+  if(LIVE_SYNC.timer) clearInterval(LIVE_SYNC.timer);
+  LIVE_SYNC = {timer:null, key:null, last:-1, fails:0, at:0};
+  const box = $("#liveOn");
+  if(box) box.checked = false;
+  state.liveOn = false;
+  save();
+  if(why) liveSyncStatus(why, "warn");
+}
+
+async function liveSyncTick(){
+  const key = LIVE_SYNC.key;
+  if(!key || state.league !== key){ liveSyncStop(""); return; }
+  const id = draftIdFor(key);
+  if(!id){ liveSyncStop("No draft ID saved for this league."); return; }
+  try{
+    const r = await fetch("https://api.sleeper.app/v1/draft/" + encodeURIComponent(id) + "/picks",
+                          {cache:"no-store"});
+    if(!r.ok) throw new Error("Sleeper answered " + r.status);
+    const j = await r.json();
+    if(!Array.isArray(j)) throw new Error("Unexpected response");
+    LIVE_SYNC.fails = 0;
+    LIVE_SYNC.at = Date.now();
+    if(j.length === LIVE_SYNC.last){
+      liveSyncStatus("Watching - " + j.length + " picks in, checked just now.", "faint");
+      return;
+    }
+    LIVE_SYNC.last = j.length;
+    j.sort(function(a,b){ return a.pick_no - b.pick_no; });
+    const names = j.map(function(p){
+      const m = p.metadata || {};
+      return ((m.first_name || "") + " " + (m.last_name || "")).trim();
+    }).filter(Boolean);
+    const res = applyNames(names);
+    renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
+    /* Whose turn it is now, in this league's own numbering. */
+    const upNext = teamOnClock(state.picks.length) + 1;
+    const mine = upNext === state.slot;
+    liveSyncStatus(
+      "Synced " + res.count + " picks" +
+      (res.missed.length ? " (" + res.missed.length + " unmatched)" : "") +
+      (mine ? " - you are on the clock." : " - team " + upNext + " on the clock."),
+      mine ? "good" : "faint");
+  }catch(e){
+    LIVE_SYNC.fails++;
+    if(LIVE_SYNC.fails >= LIVE_MAX_FAILS){
+      liveSyncStop("Live sync stopped after " + LIVE_MAX_FAILS +
+                   " failed reads. Use the bookmarklet, or turn it back on.");
+      return;
+    }
+    liveSyncStatus("Could not reach Sleeper (" + (e.message || "error") +
+                   ") - retrying, attempt " + LIVE_SYNC.fails + " of " + LIVE_MAX_FAILS + ".", "warn");
+  }
+}
+
+function liveSyncStart(){
+  const key = state.league;
+  const L = LEAGUES[key];
+  if(!L || !L.liveFeed){ liveSyncStop("This league has no public draft feed."); return; }
+  if(!window.LIVE_CAPABLE){ liveSyncStop("This build cannot fetch live data."); return; }
+  if(!draftIdFor(key)){ liveSyncStop("Enter your draft ID first."); return; }
+  if(LIVE_SYNC.timer) clearInterval(LIVE_SYNC.timer);
+  LIVE_SYNC = {timer:null, key:key, last:-1, fails:0, at:0};
+  state.liveOn = true;
+  save();
+  liveSyncStatus("Connecting to Sleeper\u2026", "faint");
+  liveSyncTick();
+  LIVE_SYNC.timer = setInterval(liveSyncTick, LIVE_POLL_MS);
+}
+
 /* The bookmarklet hands the draft over in the URL: #draft=<league>:<name>|<name>|…
    Reading it on load AND on hashchange means clicking the bookmark a second time
    updates a tab that's already open, with no reload. */
@@ -5557,6 +5648,11 @@ $("#bmCopy").addEventListener("click",function(){
 $("#syncWipe").addEventListener("click",function(){
   $("#syncIn").value=""; $("#syncMsg").textContent="";
 });
+$("#liveOn").addEventListener("change", function(e){
+  if(e.target.checked) liveSyncStart();
+  else { liveSyncStop(""); liveSyncStatus("Live sync off.", "faint"); }
+});
+
 $("#league").addEventListener("change",function(e){
   applyLeague(e.target.value); reseed(); runSim(); save();
   renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
@@ -5574,6 +5670,10 @@ function stashLeague(){
 }
 
 function applyLeague(key){
+  /* Switching leagues while a poller is running would write one draft into another
+     board. Stop first; the box is re-ticked below if the new league was left on. */
+  if(LIVE_SYNC.timer && LIVE_SYNC.key !== key) liveSyncStop("");
+
   const L = LEAGUES[key];
   if(state.league && state.league !== key) stashLeague();
   state.league = key;
@@ -5590,7 +5690,15 @@ function applyLeague(key){
   $("#league").value = key;
   $("#simCount").textContent = L.teams-1;
   const lw = $("#liveWrap");
-  if(lw) lw.hidden = !(L.liveFeed && window.LIVE_CAPABLE);
+  const canLive = !!(L.liveFeed && window.LIVE_CAPABLE);
+  if(lw) lw.hidden = !canLive;
+  /* A reload during a draft should pick the poller back up rather than quietly
+     leaving the board frozen at whatever was on screen when the tab died. */
+  const lb = $("#liveOn");
+  if(lb){
+    lb.checked = canLive && !!state.liveOn;
+    if(lb.checked && !LIVE_SYNC.timer) setTimeout(liveSyncStart, 0);
+  }
   $("#bmWrap").hidden = !(L.liveFeed || key === "mfl12");
   const bw = $("#bmWhere");
   if(bw) bw.textContent = (key === "mfl12")
