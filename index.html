@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 01:20 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 01:55 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -3324,6 +3324,7 @@ function applyProjHash(rawHash){
 
 function showProjResult(res){
   if(!res) return;
+  dataStamp();                 // the header states its sources; keep it honest
   const bar = $("#setupMsg");
   if(!bar) return;
   bar.hidden = false;
@@ -3599,9 +3600,15 @@ function dataStamp(){
   const el = $("#dataMsg");
   if(!el) return;
   buildStamp();
+  /* Named once, used by both branches, so the offline stamp cannot silently omit a
+     source that is genuinely in the blend. */
+  const srcNames = "Sleeper" + (sourcesLoaded().length
+    ? " + " + sourcesLoaded().map(function(k){ return SOURCE_LABEL[k]; }).join(" + ")
+    : " only");
   if(!LIVEDATA){
     el.innerHTML = '<span class="faint">Built-in snapshot (Aug 16). '
-      + (window.LIVE_CAPABLE ? "Refreshing…" : "This build cannot fetch live data.") + "</span>";
+      + (window.LIVE_CAPABLE ? "Refreshing…" : "This build cannot fetch live data.")
+      + " · projections " + srcNames + "</span>";
     return;
   }
   const mins = Math.round((Date.now() - LIVEDATA.at) / 60000);
@@ -3609,7 +3616,7 @@ function dataStamp(){
               : new Date(LIVEDATA.at).toLocaleString());
   el.innerHTML = '<span class="good">Live projections</span> <span class="faint">from Sleeper, '
     + when + " · " + LIVEDATA.rows.length + " players"
-    + " · projections " + ("Sleeper" + (sourcesLoaded().length ? " + " + sourcesLoaded().map(function(k){return SOURCE_LABEL[k];}).join(" + ") : " only"))
+    + " · projections " + srcNames
     + " · ADP " + ({blend:"averaged across both markets",
                         board:"from mock-draft consensus",
                         sleeper:"from Sleeper drafts"}[state.adpSource || "blend"]) + "</span>";
@@ -3656,7 +3663,7 @@ async function refreshLive(silent){
   try{
     LIVEDATA = await fetchLive();
     applyLeague(state.league);
-    renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
+    renderCliffs(); renderSOS(); renderDraftDiary(); renderAll(); dataStamp();
   }catch(e){
     const el = $("#dataMsg");
     if(el && !silent) el.innerHTML = '<span class="warn">Could not reach Sleeper — '
@@ -5911,14 +5918,14 @@ window.addEventListener("hashchange", function(){
   if(pj){
     showProjResult(pj);
     if(!pj.error){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
-    renderCliffs(); renderSOS(); renderAll();
+    renderCliffs(); renderSOS(); renderAll(); dataStamp();
     return;
   }
   const mf = applyMflHash();
   if(mf){
     showMflResult(mf);
     if(!mf.error){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
-    renderCliffs(); renderSOS(); renderAll();
+    renderCliffs(); renderSOS(); renderAll(); dataStamp();
     return;
   }
   const s = applySetupHash();

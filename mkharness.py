@@ -1567,6 +1567,28 @@ harness = r'''
     if(LIVE_SYNC.timer) throw new Error("poller still running on the wrong league");
   });
 
+  step("data-stamp-names-every-loaded-source",function(){
+    /* The header claims its own provenance. After a handover it once still read
+       "Sleeper only" while a second source was loaded and in the blend - a stamp that
+       can be stale is worse than no stamp, because it is believed. */
+    EXTRA_PROJ = {};
+    applyLeague("sleeper12");
+    dataStamp();
+    var before = document.getElementById("dataMsg").textContent;
+    if(before.indexOf("Sleeper") < 0) throw new Error("stamp never names Sleeper");
+    var res = applyProjHash('#proj=' + encodeURIComponent(JSON.stringify({src:"fbg", rows:[
+      {n:"Jahmyr Gibbs", p:"RB", py:0,pt:0,i:0, ry:1310, rt:13.1, rc:64.5, cy:534, ct:2.9, f:0}
+    ]})));
+    if(!res || res.error) throw new Error("handover rejected: " + (res && res.error));
+    showProjResult(res);
+    var after = document.getElementById("dataMsg").textContent;
+    if(after.indexOf("Footballguys") < 0)
+      throw new Error("stamp still reads: " + after.slice(0, 90));
+    if(sourcesLoaded().indexOf("fbg") < 0) throw new Error("source not registered");
+    EXTRA_PROJ = {};
+    applyLeague("sleeper12");
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
