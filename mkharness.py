@@ -1933,6 +1933,25 @@ harness = r'''
     delete ROOM.mfl12; saveRoom(); renderAll();
   });
 
+  step("the-mfl-link-reports-the-names-it-saved",function(){
+    /* The count was computed and then thrown away: the note hung on a variable that
+       is overwritten whenever an order is present, which is always, because the names
+       travel with the order. */
+    delete ROOM.mfl12; saveRoom();
+    applyLeague("mfl12");
+    var ord=[]; for(var i=0;i<24;i++) ord.push(i%12);
+    var teams=[]; for(var j=0;j<12;j++) teams.push("Squad "+(j+1));
+    var res=applyMflHash("#mfl="+encodeURIComponent(JSON.stringify(
+      {league:"mfl12", order:ord, names:[], teams:teams})));
+    if(!res || res.error) throw new Error("rejected: "+(res&&res.error));
+    if(res.applied.indexOf("12 team names")<0)
+      throw new Error("did not report the names: "+res.applied);
+    if(res.applied.indexOf("rounds")<0)
+      throw new Error("stopped reporting the order: "+res.applied);
+    if(!ROOM.mfl12 || ROOM.mfl12[5]!=="Squad 6") throw new Error("names not stored");
+    delete ROOM.mfl12; saveRoom(); setDraftOrder(null);
+  });
+
   step("room-names-are-scoped-to-one-league",function(){
     /* Twelve MFL managers must not become the ten ESPN ones. */
     delete ROOM.mfl12; delete ROOM.espn10;

@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 06:14 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 06:18 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -5985,7 +5985,8 @@ function applyMflHash(rawHash){
   if(state.league !== key) applyLeague(key);
   const named = Array.isArray(d.teams) ? setRoomNames(key, d.teams) : 0;
 
-  let orderNote = named ? (" Named " + named + " teams.") : "";
+  const nameNote = named ? (named + " team names") : "";
+  let orderNote = "";
   if(Array.isArray(d.order) && d.order.length){
     const clean = d.order.map(function(x){ return Math.round(Number(x)); })
                          .filter(function(x){ return isFinite(x); });
@@ -6000,8 +6001,9 @@ function applyMflHash(rawHash){
     const res = applyNames(d.names.filter(function(n){ return typeof n === "string"; }));
     pickNote = res.count + " picks" + (res.missed.length ? " (" + res.missed.length + " unmatched)" : "");
   }
-  if(!orderNote && !pickNote) return {error:"That link carried nothing usable."};
-  return {applied:[orderNote, pickNote].filter(Boolean).join(" and ")};
+  if(!orderNote && !pickNote && !nameNote)
+    return {error:"That link carried nothing usable."};
+  return {applied:[orderNote, pickNote, nameNote].filter(Boolean).join(" and ")};
 }
 
 function showMflResult(res){
