@@ -182,27 +182,28 @@ harness = r'''
     });
   });
 
-  step("cbs-declares-off-board-need",function(){
-    applyLeague("cbs12"); state.slot=1; state.sim=true; state.picks=[]; reseed();
-    var need=Math.min(state.teams*state.rounds,PLAYERS.length), g=0;
-    runSim();
-    while(state.picks.length<need && g++<600){ var r=recommend(); if(!r.length) break; makePick(r[0].p.id); runSim(); }
-    renderTeam();
-    var t=document.getElementById("teamOut").textContent;
-    if(t.indexOf("off the board")<0) throw new Error("no off-board note shown");
+  step("off-board-warning-fires-only-when-the-board-is-short",function(){
+    /* This used to assert CBS always shows the note, which was true only because the
+       built-in board carried ten kickers against a 24-kicker requirement. The board
+       now covers every league's minimums, so the honest test is that the note stays
+       quiet when it should and still fires when it must. */
+    ["espn10","cbs12","mfl12","sleeper12"].forEach(function(lg){
+      applyLeague(lg);
+      if(offBoardNote() !== "")
+        throw new Error(lg+" warns about an off-board need the board can now cover");
+    });
+    /* Demand more than exists and it must speak up. */
+    applyLeague("cbs12");
+    var realTE = NEED.TE;
+    NEED.TE = 40;                       // 480 tight ends across 12 teams
+    var note = offBoardNote();
+    NEED.TE = realTE;
+    if(note.indexOf("off the board") < 0)
+      throw new Error("no warning when the board genuinely cannot cover the rules");
+    applyLeague("cbs12");
   });
 
-  step("other-leagues-have-no-off-board-note",function(){
-    ["espn10","mfl12","sleeper12"].forEach(function(k){
-      applyLeague(k); state.slot=1; state.sim=true; state.picks=[]; reseed();
-      var need=Math.min(state.teams*state.rounds,PLAYERS.length), g=0;
-      runSim();
-      while(state.picks.length<need && g++<600){ var r=recommend(); if(!r.length) break; makePick(r[0].p.id); runSim(); }
-      renderTeam();
-      if(document.getElementById("teamOut").textContent.indexOf("off the board")>=0)
-        throw new Error(k+" wrongly shows off-board note");
-    });
-  });
+
 
 
   step("projections-attached",function(){
@@ -1744,6 +1745,60 @@ harness = r'''
     if(firsts/trials > 0.6)
       throw new Error("recommender finished first in "+firsts+"/"+trials+" mocks");
     state.picks=[]; state.sim=false;
+  });
+
+  step("every-league-can-actually-fill-its-roster-rules",function(){
+    /* CBS makes you roster two of every position - 24 kickers and 24 defenses across
+       a 12-team room - while the built-in board carried ten kickers. Nine of twelve
+       seats could not finish legally, and the offline board is exactly what he falls
+       back on if the wifi dies mid-draft. */
+    ["espn10","cbs12","mfl12","sleeper12"].forEach(function(lg){
+      applyLeague(lg);
+      Object.keys(NEED).forEach(function(pos){
+        var pool = PLAYERS.filter(function(p){ return p.pos===pos; }).length;
+        var wanted = NEED[pos] * state.teams;
+        if(pool < wanted)
+          throw new Error(lg+" needs "+wanted+" "+pos+" but the board has "+pool);
+      });
+    });
+  });
+
+  step("a-full-draft-finishes-legal-in-every-league",function(){
+    /* Roster minimums are a rule the commissioner enforces, not a preference to be
+       outvoted by a projection. Once the picks left equal the requirements still
+       owed, every remaining pick is committed.
+
+       The tight case is what makes this real. With sixteen rounds there is enough
+       slack that the soft need weight happens to cope; squeeze CBS down to twelve -
+       exactly its twelve required spots - and without the hard gate 22 of 36 drafts
+       finish short, almost all of them missing a kicker. The app has a rounds
+       control, so this is a state a user can reach. */
+    var cases = [["espn10",null],["mfl12",null],["cbs12",null],["cbs12",12]];
+    cases.forEach(function(c){
+      var lg=c[0], forceRounds=c[1];
+      applyLeague(lg);
+      if(forceRounds) state.rounds=forceRounds;
+      var seats=[];
+      if(lg==="cbs12"){ for(var s=1;s<=state.teams;s++) seats.push(s); }
+      else seats=[1, Math.ceil(state.teams/2), state.teams];
+      seats.forEach(function(seat){
+        state.slot=seat; state.picks=[]; state.sim=true; state.seed=String(600+seat*11);
+        var need=state.teams*state.rounds, g=0;
+        runSim();
+        while(state.picks.length<need && g++<900){
+          var r=recommend(); if(!r.length) break; makePick(r[0].p.id); runSim();
+        }
+        var roster=rosterOf(myIdx());
+        Object.keys(NEED).forEach(function(pos){
+          var have=roster.filter(function(p){ return p.pos===pos; }).length;
+          if(have < NEED[pos])
+            throw new Error(lg+(forceRounds?" @"+forceRounds+"rd":"")+" seat "+seat+
+                            " finished with "+have+" "+pos+", needs "+NEED[pos]);
+        });
+      });
+    });
+    state.picks=[]; state.sim=false;
+    applyLeague("sleeper12");
   });
 
   step("only-one-poller-exists",function(){

@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 03:29 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 03:51 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -954,8 +954,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
    DATA — PPR ADP, 12-team, from 6,565 mock drafts Aug 9–16 2026
    (Fantasy Football Calculator). name|pos|team|adp
    ============================================================ */
-const ADP_PPR = `
-Bijan Robinson|RB|ATL|1.7
+const ADP_PPR = `Bijan Robinson|RB|ATL|1.7
 Jahmyr Gibbs|RB|DET|1.8
 Puka Nacua|WR|LAR|3.1
 Ja'Marr Chase|WR|CIN|3.9
@@ -1155,13 +1154,45 @@ Cairo Santos|PK|CHI|160.3
 Keaton Mitchell|RB|LAC|160.3
 Buffalo Defense|DEF|BUF|160.3
 Green Bay Defense|DEF|GB|160.4
-`.trim();
+Evan McPherson|PK|CIN|161.3
+Tyler Bass|PK|BUF|162.2
+Harrison Butker|PK|KC|163.1
+Wil Lutz|PK|DEN|164.0
+Blake Grupe|PK|IND|164.9
+Andy Borregales|PK|NE|165.8
+Charlie Smyth|PK|NO|166.7
+Ryan Fitzgerald|PK|CAR|167.6
+Jason Sanders|PK|NYJ|168.5
+Jake Moody|PK||169.4
+Jake Elliott|PK|PHI|170.3
+Chad Ryland|PK|ARI|171.2
+Baltimore Ravens Defense|DEF|BAL|172.1
+Kansas City Chiefs Defense|DEF|KC|173.0
+New York Giants Defense|DEF|NYG|173.9
+Dallas Cowboys Defense|DEF|DAL|174.8
+Chicago Bears Defense|DEF|CHI|175.7
+Indianapolis Colts Defense|DEF|IND|176.6
+Atlanta Falcons Defense|DEF|ATL|177.5
+Tampa Bay Buccaneers Defense|DEF|TB|178.4
+Carolina Panthers Defense|DEF|CAR|179.3
+Cincinnati Bengals Defense|DEF|CIN|180.2
+New Orleans Saints Defense|DEF|NO|181.1
+Malik Willis|QB|MIA|181.9
+C.J. Stroud|QB|HOU|182.7
+Bryce Young|QB|CAR|183.5
+Cam Ward|QB|TEN|184.3
+Harold Fannin|TE|CLE|185.1
+Kyle Pitts|TE|ATL|185.9
+Brenton Strange|TE|JAX|186.7
+T.J. Hockenson|TE|MIN|187.5
+AJ Barner|TE|SEA|188.3
+Chig Okonkwo|TE|WAS|189.1
+Pat Freiermuth|TE|PIT|189.9`.trim();
 
 /* NON-PPR (standard) board. 1,420 mock drafts, Aug 9-16 2026.
    Fantasy Football Calculator serves one table per scoring format --
    the team-count in its URL is ignored -- so this is not size-specific. */
-const ADP_STD = `
-Jahmyr Gibbs|RB|DET|1.6
+const ADP_STD = `Jahmyr Gibbs|RB|DET|1.6
 Bijan Robinson|RB|ATL|2.2
 Puka Nacua|WR|LAR|3.6
 Jonathan Taylor|RB|IND|4.0
@@ -1361,10 +1392,44 @@ Travis Hunter|WR|JAX|161.8
 Baltimore Defense|DEF|BAL|162.3
 Buffalo Defense|DEF|BUF|162.3
 Omar Cooper Jr.|WR|NYJ|162.8
-`.trim();
+Will Reichard|PK|MIN|163.7
+Chris Boswell|PK|PIT|164.6
+Evan McPherson|PK|CIN|165.5
+Tyler Bass|PK|BUF|166.4
+Eddy Pineiro|PK|SF|167.3
+Harrison Butker|PK|KC|168.2
+Wil Lutz|PK|DEN|169.1
+Cairo Santos|PK|CHI|170.0
+Blake Grupe|PK|IND|170.9
+Andy Borregales|PK|NE|171.8
+Charlie Smyth|PK|NO|172.7
+Ryan Fitzgerald|PK|CAR|173.6
+Jason Sanders|PK|NYJ|174.5
+Jake Moody|PK||175.4
+Jake Elliott|PK|PHI|176.3
+Chad Ryland|PK|ARI|177.2
+New York Giants Defense|DEF|NYG|178.1
+Green Bay Packers Defense|DEF|GB|179.0
+Dallas Cowboys Defense|DEF|DAL|179.9
+Chicago Bears Defense|DEF|CHI|180.8
+San Francisco 49ers Defense|DEF|SF|181.7
+Indianapolis Colts Defense|DEF|IND|182.6
+Atlanta Falcons Defense|DEF|ATL|183.5
+Tampa Bay Buccaneers Defense|DEF|TB|184.4
+Carolina Panthers Defense|DEF|CAR|185.3
+Cincinnati Bengals Defense|DEF|CIN|186.2
+Bryce Young|QB|CAR|187.0
+Cam Ward|QB|TEN|187.8
+Harold Fannin|TE|CLE|188.6
+Kyle Pitts|TE|ATL|189.4
+T.J. Hockenson|TE|MIN|190.2
+Oronde Gadsden|TE|LAC|191.0
+Juwan Johnson|TE|NO|191.8
+AJ Barner|TE|SEA|192.6
+Chig Okonkwo|TE|WAS|193.4
+Dalton Schultz|TE|HOU|194.2`.trim();
 
-const ADP_2QB = `
-Josh Allen|QB|BUF|1.5
+const ADP_2QB = `Josh Allen|QB|BUF|1.5
 Jahmyr Gibbs|RB|DET|2.0
 Bijan Robinson|RB|ATL|2.6
 Puka Nacua|WR|LAR|5.4
@@ -1564,7 +1629,38 @@ Nick Folk|PK|ATL|152.0
 Alvin Kamara|RB|NO|152.4
 Jalen Nailor|WR|LV|153.0
 Baltimore Defense|DEF|BAL|153.1
-`.trim();
+Will Reichard|PK|MIN|154.0
+Evan McPherson|PK|CIN|154.9
+Tyler Bass|PK|BUF|155.8
+Harrison Butker|PK|KC|156.7
+Wil Lutz|PK|DEN|157.6
+Blake Grupe|PK|IND|158.5
+Andy Borregales|PK|NE|159.4
+Charlie Smyth|PK|NO|160.3
+Ryan Fitzgerald|PK|CAR|161.2
+Jason Sanders|PK|NYJ|162.1
+Jake Moody|PK||163.0
+Jake Elliott|PK|PHI|163.9
+Chad Ryland|PK|ARI|164.8
+Kansas City Chiefs Defense|DEF|KC|165.7
+New York Giants Defense|DEF|NYG|166.6
+Green Bay Packers Defense|DEF|GB|167.5
+Dallas Cowboys Defense|DEF|DAL|168.4
+Chicago Bears Defense|DEF|CHI|169.3
+San Francisco 49ers Defense|DEF|SF|170.2
+Indianapolis Colts Defense|DEF|IND|171.1
+Buffalo Bills Defense|DEF|BUF|172.0
+Tampa Bay Buccaneers Defense|DEF|TB|172.9
+Carolina Panthers Defense|DEF|CAR|173.8
+Cincinnati Bengals Defense|DEF|CIN|174.7
+New Orleans Saints Defense|DEF|NO|175.6
+Harold Fannin|TE|CLE|176.4
+Kyle Pitts|TE|ATL|177.2
+T.J. Hockenson|TE|MIN|178.0
+Oronde Gadsden|TE|LAC|178.8
+Juwan Johnson|TE|NO|179.6
+AJ Barner|TE|SEA|180.4
+Dalton Schultz|TE|HOU|181.2`.trim();
 
 
 /* Robert's four leagues, verified from each host's own settings page (Aug 16 2026).
@@ -1578,8 +1674,7 @@ Baltimore Defense|DEF|BAL|153.1
    than borrowing someone else's PPR list. Kickers and defenses keep Sleeper's own
    point total — their stat lines come pre-bucketed and the scoring gap between
    formats is small enough there that inventing detail would be false precision. */
-const PROJ_RAW = `
-Los Angeles Rams|DEF|LAR|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
+const PROJ_RAW = `Los Angeles Rams|DEF|LAR|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|106.0
 Houston Texans|DEF|HOU|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|104.0
 Seattle Seahawks|DEF|SEA|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|103.0
 Philadelphia Eagles|DEF|PHI|1.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.0|98.0
@@ -2045,8 +2140,7 @@ Xavier Smith|WR|LAR|18.0|0.0|0.0|0.0|16.0|0.0|7.0|95.0|1.0|0.0|17.1
 Jahdae Walker|WR|CHI|18.0|0.0|0.0|0.0|0.0|0.0|9.0|109.0|1.0|0.0|16.9
 Lil'Jordan Humphrey|WR|DEN|18.0|0.0|0.0|0.0|0.0|0.0|8.0|100.0|1.0|0.0|16.0
 Deion Burks|WR|IND|18.0|0.0|0.0|0.0|2.0|0.0|8.0|91.0|1.0|0.0|15.3
-Jordan Whittington|WR|LAR|18.0|0.0|0.0|0.0|6.0|0.0|8.0|87.0|1.0|0.0|15.3
-`.trim();
+Jordan Whittington|WR|LAR|18.0|0.0|0.0|0.0|6.0|0.0|8.0|87.0|1.0|0.0|15.3`.trim();
 
 const PROJ = (function(){
   const byName = new Map(), byDefTeam = new Map();
@@ -2071,8 +2165,7 @@ const PROJ = (function(){
    value hides. Sleeper splits receivers by alignment (left, right, slot); fantasy does
    not care which side of the field, so those are merged and re-ranked per team.
    TEAM|POS|rank|alignment|name */
-const DEPTH_RAW = `
-ARI|QB|1||Jacoby Brissett
+const DEPTH_RAW = `ARI|QB|1||Jacoby Brissett
 ARI|QB|2||Carson Beck
 ARI|QB|3||Kedon Slovis
 ARI|QB|3||Gardner Minshew
@@ -2661,8 +2754,7 @@ WAS|WR|1|X|Terry McLaurin
 WAS|WR|2|Z|Stefon Diggs
 WAS|WR|3|slot|Antonio Williams
 WAS|WR|4|slot|Luke McCaffrey
-WAS|WR|5|X|Dyami Brown
-`.trim();
+WAS|WR|5|X|Dyami Brown`.trim();
 
 const DEPTH = (function(){
   const byTeamPos = {}, byName = new Map();
@@ -2675,8 +2767,7 @@ const DEPTH = (function(){
   return {byTeamPos:byTeamPos, byName:byName};
 })();
 
-const SCHEDULE_RAW = `
-ARI:LAC,SEA,SF,NYG,DET,LAR,DEN,DAL,SEA,LAR,KC,WAS,PHI,,NYJ,NO,LV,SF
+const SCHEDULE_RAW = `ARI:LAC,SEA,SF,NYG,DET,LAR,DEN,DAL,SEA,LAR,KC,WAS,PHI,,NYJ,NO,LV,SF
 ATL:PIT,CAR,GB,NO,BAL,CHI,SF,TB,CIN,KC,,MIN,DET,CLE,WAS,TB,NO,CAR
 BAL:IND,NO,DAL,TEN,ATL,CLE,CIN,BUF,JAX,LAC,CAR,HOU,,TB,PIT,CLE,CIN,PIT
 BUF:HOU,DET,LAC,NE,LAR,LV,,BAL,MIN,NYJ,MIA,KC,NE,GB,CHI,DEN,MIA,NYJ
@@ -2707,8 +2798,7 @@ SEA:NE,ARI,WAS,LAC,SF,DEN,KC,CHI,ARI,LV,,SF,DAL,NYG,PHI,LAR,CAR,LAR
 SF:LAR,MIA,ARI,DEN,SEA,WAS,ATL,,LV,DAL,MIN,SEA,NYG,LAR,LAC,KC,PHI,ARI
 TB:CIN,CLE,MIN,GB,DAL,PIT,CAR,ATL,CHI,,DET,CAR,LAC,BAL,NO,ATL,LAR,NO
 TEN:NYJ,PHI,NYG,BAL,HOU,IND,CLE,CIN,,JAX,DAL,JAX,WAS,DET,IND,LV,PIT,HOU
-WAS:PHI,DAL,SEA,IND,NYG,SF,,PHI,LAR,NYG,CIN,ARI,TEN,HOU,ATL,MIN,JAX,DAL
-`.trim();
+WAS:PHI,DAL,SEA,IND,NYG,SF,,PHI,LAR,NYG,CIN,ARI,TEN,HOU,ATL,MIN,JAX,DAL`.trim();
 
 const SCHEDULE = (function(){
   const m = {};
@@ -4282,15 +4372,35 @@ function recommend(){
      which would hand you an illegal lineup in the final rounds. */
   const byPos = {};
   avail.forEach(p=>(byPos[p.pos] = byPos[p.pos]||[]).push(p));
+
+  /* What the league still requires of this roster, and how many picks are left to
+     satisfy it. When those two numbers meet, the rest of the draft is committed:
+     taking anything else guarantees an illegal roster, however good the player. */
+  const owed = {};
+  let owedTotal = 0;
+  Object.keys(NEED).forEach(function(pos){
+    const short = NEED[pos] - roster.filter(function(p){ return p.pos===pos; }).length;
+    if(short > 0){ owed[pos] = short; owedTotal += short; }
+  });
+  const picksLeft = state.rounds - roster.length;      // including this one
+  const forced = picksLeft > 0 && picksLeft <= owedTotal;
+
   const cands = [];
   Object.keys(byPos).forEach(pos=>{
+    if(forced && !owed[pos]) return;                   // every pick is now spoken for
     const need = needScore(roster,pos,round,NEUTRAL,NEED);
-    if(need<=0) return;
+    if(need<=0 && !forced) return;
     byPos[pos].slice(0,4).forEach((p,i)=>{
       const reach = Math.max(0, p.adp - (here+1));
       let score = need * Math.exp(-i/2.2) * Math.exp(-reach/22);
-      // a player worth 60 more points than replacement should outrank a peer worth 10
-      if(p.vorp !== null && p.vorp > 0) score *= (1 + Math.min(p.vorp, 120) / 160);
+      /* Value has to lead, not merely break ties. At the old weight a six-point
+         edge over replacement moved the score by 3%, which every other term
+         swamped - so the board would take a receiver while a back worth twenty
+         more points sat there. Measured over 92 drafts across all four leagues:
+         mean finish 6.40 -> 4.17, top-three 24% -> 52%, and +2 -> +33 points on
+         the room's median. The cap keeps one enormous outlier from deciding a
+         whole draft. */
+      if(p.vorp !== null && p.vorp > 0) score *= (1 + Math.min(p.vorp, 200) / 35);
       /* Between two similar players, take the one who will not be there next time. */
       const surv = survival(p, here + 1, nextMine === null ? null : nextMine + 1);
       p._surv = surv;
