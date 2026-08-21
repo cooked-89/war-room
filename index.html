@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 05:53 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 06:14 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -463,6 +463,20 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
               <span id="orderMsg" style="font-size:12.5px"></span>
             </div>
           </div>
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
+            <div class="eyebrow" style="margin-bottom:5px">Who else is in the room</div>
+            <p class="faint" style="margin:0 0 7px; font-size:12.5px" id="roomHow"></p>
+            <textarea id="roomIn" rows="4" placeholder="One team name per line, in draft-slot order…"
+              style="width:100%; font-family:var(--mono); font-size:11.5px; padding:8px;
+                     border:1px solid var(--line-2); border-radius:6px;
+                     background:var(--surface-2); color:var(--ink); resize:vertical"></textarea>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap">
+              <button class="btn sm primary" id="roomSave">Save names</button>
+              <button class="btn sm" id="roomClear">Clear</button>
+              <span id="roomMsg" style="font-size:12.5px"></span>
+            </div>
+          </div>
+
           <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
             <div class="eyebrow" style="margin-bottom:5px">Move to another device</div>
             <p class="faint" style="margin:0 0 7px; font-size:12.5px">
@@ -3424,6 +3438,50 @@ function attachProjections(key){
 
    Stored as raw stat lines, never as points, so each league scores them under its own
    rules exactly like the Sleeper rows. */
+/* Manager names, per league, on this device only. Never baked into the source:
+   the published board carries no league identity and this must not change that. */
+const ROOM_KEY = "warroom.room.v1";
+let ROOM = {};                       // leagueKey -> [name, name, ...] by team index
+
+function loadRoom(){
+  try{
+    const raw = localStorage.getItem(ROOM_KEY);
+    ROOM = raw ? (JSON.parse(raw) || {}) : {};
+  }catch(e){ ROOM = {}; }
+}
+
+function saveRoom(){
+  try{ localStorage.setItem(ROOM_KEY, JSON.stringify(ROOM)); }catch(e){}
+}
+
+function setRoomNames(key, names){
+  if(!LEAGUES[key] || !Array.isArray(names)) return 0;
+  const clean = names.slice(0, LEAGUES[key].teams).map(function(n){
+    return typeof n === "string" ? n.trim().slice(0, 40) : "";
+  });
+  if(!clean.some(Boolean)) return 0;
+  ROOM[key] = clean;
+  saveRoom();
+  return clean.filter(Boolean).length;
+}
+
+/* Full name for a team index, or the plain number when we do not know it. */
+function teamName(i){
+  const list = ROOM[state.league];
+  const nm = list && list[i];
+  return nm ? nm : "Team " + (i + 1);
+}
+
+/* Short form for tight spots - the pick log and the grid header. */
+function teamTag(i){
+  const list = ROOM[state.league];
+  const nm = list && list[i];
+  if(!nm) return "T" + (i + 1);
+  const words = nm.split(/\s+/).filter(Boolean);
+  if(words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  return nm.slice(0, 4);
+}
+
 const FP_KEY = "warroom.fp.v2";
 /* One bucket per outside source. Sleeper arrives over the network; the others are
    handed over by bookmarklet because their tables only render for a real browser.
@@ -3783,11 +3841,16 @@ function refreshBookmarklet(key){
   const field = $("#bmCode");
   if(!field) return;
   if(key === "mfl12"){
+    const mflId = draftIdFor("mfl12");
+    if(!mflId){
+      field.value = "Enter your MyFantasyLeague league ID above first.";
+      return;
+    }
     /* Fetches the published order and, once picks exist, resolves their ids through
        the league's own player list before handing everything over. */
     field.value =
       "javascript:(async function(){try{" +
-      "var b='https://www44.myfantasyleague.com/2026/export?L=33101&JSON=1';" +
+      "var b='https://www44.myfantasyleague.com/2026/export?L=" + mflId + "&JSON=1';" +
       "var d=await (await fetch(b+'&TYPE=draftResults')).json();" +
       "var ps=d.draftResults.draftUnit.draftPick;" +
       "var T=12,ord=[],ids=[];" +
@@ -3799,7 +3862,11 @@ function refreshBookmarklet(key){
       "ids.sort(function(a,b){return a.o-b.o});" +
       "names=ids.map(function(x){var n=map[x.id]||'';" +
       "var c=n.split(', ');return c.length>1?(c[1]+' '+c[0]):n;}).filter(Boolean);}" +
-      "var pay={league:'mfl12',order:ord,names:names};" +
+      "var lg=await (await fetch(b+'&TYPE=league')).json();" +
+      "var fr=(lg.league.franchises.franchise||[]).slice().sort(function(a,b){" +
+      "return (+a.id)-(+b.id)});" +
+      "var tm=fr.map(function(f){return f.name||''});" +
+      "var pay={league:'mfl12',order:ord,names:names,teams:tm};" +
       "window.open('" + location.origin + location.pathname +
       "#mfl='+encodeURIComponent(JSON.stringify(pay)),'warroom');" +
       "}catch(e){alert('War Room sync failed: '+e.message)}})()";
@@ -4513,7 +4580,7 @@ function renderDraft(){
   } else {
     const nm = nextMyPick();
     oc.className="onclock idle";
-    oc.innerHTML = `<div class="eyebrow">Team ${teamOnClock(ov)+1} on the clock</div>
+    oc.innerHTML = `<div class="eyebrow">${esc(teamName(teamOnClock(ov)))} on the clock</div>
       <div class="big">Round ${roundOf(ov)}, Pick ${pickInRound(ov)}</div>
       <div class="muted" style="font-size:13px">${nm!==null?`Your next pick is #${nm+1} overall — ${nm-ov} away.`:"No picks remaining."}</div>`;
   }
@@ -4544,7 +4611,7 @@ function renderDraft(){
   // recommendations, or a free search over everyone still available
   const dq = ($("#dsearch").value||"").toLowerCase().trim();
   const label = done ? "Best available"
-    : mine ? "Best available" : `Record pick for Team ${teamOnClock(ov)+1}`;
+    : mine ? "Best available" : `Record pick for ${esc(teamName(teamOnClock(ov)))}`;
   $("#recsTitle").textContent = dq ? "Search results" : label;
 
   const rowFor = (p, i, extra) => `<div class="rec">
@@ -4648,7 +4715,7 @@ function renderDraft(){
       <span class="slot">${roundOf(pk.overall)}.${String(pickInRound(pk.overall)).padStart(2,"0")}</span>
       ${posPill(p)}
       <span style="flex:1; min-width:0">${esc(p.name)}</span>
-      <span class="faint" style="font-size:11px">${pk.team===myIdx()?"you":"T"+(pk.team+1)}</span>
+      <span class="faint" style="font-size:11px" title="${esc(teamName(pk.team))}">${pk.team===myIdx()?"you":esc(teamTag(pk.team))}</span>
     </div>`;
   }).join("") || `<p class="muted" style="margin:0; font-size:13px">No picks yet.</p>`;
 
@@ -4659,7 +4726,7 @@ function renderDraft(){
 function renderDBoard(){
   const t=state.teams, r=state.rounds;
   let head = "<thead><tr><th>Rd</th>";
-  for(let i=0;i<t;i++) head += `<th>${i===myIdx()?"YOU":"T"+(i+1)}</th>`;
+  for(let i=0;i<t;i++) head += `<th title="${esc(teamName(i))}">${i===myIdx()?"YOU":esc(teamTag(i))}</th>`;
   head += "</tr></thead><tbody>";
   let body="";
   for(let rd=0; rd<r; rd++){
@@ -5747,6 +5814,37 @@ function liveSyncStop(why){
   if(why) liveSyncStatus(why, "warn");
 }
 
+/* Sleeper publishes the room: the draft maps slot to roster, the league maps roster
+   to owner, and the owner carries a team name. Three small requests, once per sync
+   start, and only if we do not already have the names. */
+async function fetchRoomFromSleeper(key){
+  if(ROOM[key] && ROOM[key].filter(Boolean).length) return 0;
+  const id = draftIdFor(key);
+  if(!id || !window.LIVE_CAPABLE) return 0;
+  try{
+    const draft = await (await fetch("https://api.sleeper.app/v1/draft/" + encodeURIComponent(id))).json();
+    const leagueId = draft && draft.league_id;
+    const slotMap = draft && draft.slot_to_roster_id;
+    if(!leagueId || !slotMap) return 0;
+    const rosters = await (await fetch("https://api.sleeper.app/v1/league/" + leagueId + "/rosters")).json();
+    const users   = await (await fetch("https://api.sleeper.app/v1/league/" + leagueId + "/users")).json();
+    if(!Array.isArray(rosters) || !Array.isArray(users)) return 0;
+    const ownerOf = {}, nameOf = {};
+    rosters.forEach(function(r){ ownerOf[r.roster_id] = r.owner_id; });
+    users.forEach(function(u){
+      nameOf[u.user_id] = (u.metadata && u.metadata.team_name) || u.display_name || "";
+    });
+    const names = [];
+    Object.keys(slotMap).forEach(function(slot){
+      const idx = (+slot) - 1;                      // draft slots are 1-based
+      names[idx] = nameOf[ownerOf[slotMap[slot]]] || "";
+    });
+    const n = setRoomNames(key, names);
+    if(n){ renderAll(); renderRoomBox(); }
+    return n;
+  }catch(e){ return 0; }
+}
+
 async function liveSyncTick(){
   const key = LIVE_SYNC.key;
   if(!key || state.league !== key){ liveSyncStop(""); return; }
@@ -5816,6 +5914,7 @@ function liveSyncStart(){
   state.liveOn = true;
   save();
   liveSyncStatus("Connecting to Sleeper\u2026", "faint");
+  fetchRoomFromSleeper(key);
   liveSyncTick();
   LIVE_SYNC.timer = setInterval(liveSyncTick, LIVE_POLL_MS);
 }
@@ -5884,8 +5983,9 @@ function applyMflHash(rawHash){
 
   const key = (typeof d.league === "string" && LEAGUES[d.league]) ? d.league : "mfl12";
   if(state.league !== key) applyLeague(key);
+  const named = Array.isArray(d.teams) ? setRoomNames(key, d.teams) : 0;
 
-  let orderNote = "";
+  let orderNote = named ? (" Named " + named + " teams.") : "";
   if(Array.isArray(d.order) && d.order.length){
     const clean = d.order.map(function(x){ return Math.round(Number(x)); })
                          .filter(function(x){ return isFinite(x); });
@@ -5982,6 +6082,41 @@ $("#bmCopy").addEventListener("click",function(){
 $("#syncWipe").addEventListener("click",function(){
   $("#syncIn").value=""; $("#syncMsg").textContent="";
 });
+function renderRoomBox(){
+  const box = $("#roomIn"), how = $("#roomHow");
+  if(!box) return;
+  const L = LEAGUES[state.league];
+  const list = ROOM[state.league] || [];
+  box.value = list.length ? list.join(String.fromCharCode(10)) : "";
+  box.rows = Math.min(12, Math.max(4, L.teams));
+  if(how) how.innerHTML = (state.league === "mfl12")
+    ? "Click the MyFantasyLeague bookmarklet below and the names come across with the order. " +
+      "Or type them here, in draft-slot order — slot " + state.slot + " is you."
+    : (L.liveFeed
+      ? "Turn on Live sync and these fill themselves from Sleeper. Or type them, in draft-slot order."
+      : L.host + " has no public feed, so type them here — one per line, in draft-slot order. " +
+        "Slot " + state.slot + " is you.");
+}
+
+$("#roomSave").addEventListener("click", function(){
+  const lines = $("#roomIn").value.split(String.fromCharCode(10));
+  const n = setRoomNames(state.league, lines);
+  const msg = $("#roomMsg");
+  if(msg) msg.innerHTML = n
+    ? '<span class="good">Saved ' + n + " names.</span>"
+    : '<span class="warn">Nothing usable to save.</span>';
+  renderAll();
+});
+
+$("#roomClear").addEventListener("click", function(){
+  delete ROOM[state.league];
+  saveRoom();
+  renderRoomBox();
+  const msg = $("#roomMsg");
+  if(msg) msg.textContent = "Cleared — back to numbers.";
+  renderAll();
+});
+
 $("#copySetup").addEventListener("click", function(){ showHandoff(setupLink(), "setup"); });
 $("#copyOrder").addEventListener("click", function(){ showHandoff(orderLink(), "order"); });
 
@@ -6064,7 +6199,12 @@ function applyLeague(key){
   }).join("");
   renderAudit();
   const dIn = $("#draftIdIn");
-  if(dIn) dIn.value = draftIdFor(key);
+  if(dIn){
+    dIn.value = draftIdFor(key);
+    dIn.placeholder = (key === "mfl12")
+      ? "your MyFantasyLeague league ID"
+      : "the number in your draft URL";
+  }
   const wIn = $("#draftWhenIn");
   if(wIn) wIn.value = draftWhenFor(key);
   renderCountdown(key);
@@ -6073,11 +6213,13 @@ function applyLeague(key){
   const oh = $("#orderHow");
   if(oh) oh.innerHTML = (key === "mfl12")
     ? "This league is not a snake after round two. Paste the JSON from " +
-      "<code>www44.myfantasyleague.com/2026/export?TYPE=draftResults&amp;L=33101&amp;JSON=1</code> " +
+      "<code>www44.myfantasyleague.com/2026/export?TYPE=draftResults&amp;L=" +
+      esc(draftIdFor("mfl12") || "&lt;your-league-id&gt;") + "&amp;JSON=1</code> " +
       "and the whole order loads - re-paste after the blind bid and it updates."
     : "Only needed if your league does not use a standard snake. Paste one round of " +
       "team numbers and it repeats, or paste a host's full order export.";
   refreshBookmarklet(key);
+  renderRoomBox();
   $("#syncHow").innerHTML = (key==="sleeper12")
     ? 'Sleeper publishes this draft\'s picks as open JSON. Open ' +
       '<code>api.sleeper.app/v1/draft/' + (draftIdFor(key) || '&lt;your-draft-id&gt;') + '/picks</code> in a tab, select all, ' +
@@ -6170,6 +6312,7 @@ document.addEventListener("keydown", function(e){
 load();
 LIVEDATA = loadCachedLive();      // instant, offline-safe; network refresh follows
 EXTRA_PROJ = loadCachedExtra();
+loadRoom();
 const savedPicks = state.picks;
 applyLeague(state.league);
 state.picks = savedPicks.filter(function(pk){ return byId.has(pk.playerId); });

@@ -1906,6 +1906,91 @@ harness = r'''
     setDraftOrder(null);
   });
 
+  step("rivals-are-named-once-we-know-them",function(){
+    /* Every rival read "Team 8" or "T8", which is useless in a room where you know
+       these people by name. */
+    applyLeague("mfl12");
+    state.picks=[]; state.sim=false; state.slot=1;
+    delete ROOM.mfl12;
+    var before = teamName(7);
+    if(before !== "Team 8") throw new Error("unnamed team should read Team 8, got "+before);
+    if(teamTag(7) !== "T8") throw new Error("unnamed tag should read T8, got "+teamTag(7));
+
+    var made = [];
+    for(var i=0;i<12;i++) made.push("Placeholder Squad " + (i+1));
+    var n = setRoomNames("mfl12", made);
+    if(n !== 12) throw new Error("saved "+n+" of 12");
+    if(teamName(7) !== "Placeholder Squad 8")
+      throw new Error("name not used: "+teamName(7));
+    if(teamTag(7) !== "PS") throw new Error("tag should initial down to PS, got "+teamTag(7));
+
+    /* And it must actually reach the screen. */
+    state.tab = "draft";
+    renderAll();
+    var shown = document.getElementById("p-draft").textContent;
+    if(shown.indexOf("Placeholder Squad") < 0 && shown.indexOf("PS") < 0)
+      throw new Error("names never rendered on the draft tab");
+    delete ROOM.mfl12; saveRoom(); renderAll();
+  });
+
+  step("room-names-are-scoped-to-one-league",function(){
+    /* Twelve MFL managers must not become the ten ESPN ones. */
+    delete ROOM.mfl12; delete ROOM.espn10;
+    setRoomNames("mfl12", ["Alpha","Bravo","Charlie","Delta","Echo","Foxtrot",
+                           "Golf","Hotel","India","Juliet","Kilo","Lima"]);
+    applyLeague("espn10");
+    if(teamName(0) !== "Team 1")
+      throw new Error("espn borrowed an MFL name: "+teamName(0));
+    applyLeague("mfl12");
+    if(teamName(0) !== "Alpha") throw new Error("mfl lost its own: "+teamName(0));
+    /* Never store more names than the league has seats. */
+    var over = [];
+    for(var i=0;i<40;i++) over.push("X"+i);
+    setRoomNames("espn10", over);
+    if(ROOM.espn10.length > LEAGUES.espn10.teams)
+      throw new Error("stored "+ROOM.espn10.length+" names for a 10-team league");
+    delete ROOM.mfl12; delete ROOM.espn10; saveRoom();
+  });
+
+  step("no-league-identity-is-baked-into-the-build",function(){
+    /* Names live on the device, never in the source. The published board carries no
+       league identity and adding this must not change that. */
+    delete ROOM.mfl12; saveRoom();
+    var src = document.documentElement.outerHTML;
+    var marker = String.fromCharCode(82,79,79,77,95,75,69,89);   // ROOM_KEY
+    if(src.indexOf(marker) < 0) throw new Error("room store missing entirely");
+    /* The store must start empty in a clean build - nothing pre-populated. */
+    if(ROOM.mfl12 || ROOM.espn10 || ROOM.cbs12 || ROOM.sleeper12)
+      throw new Error("a league shipped with names already in it");
+  });
+
+  step("no-host-league-number-is-baked-in",function(){
+    /* The published board carries no league identity. The Sleeper draft id already
+       lived in localStorage; the MyFantasyLeague league number was hard-coded twice
+       and slipped past the existing guards, which only looked for draft ids and
+       league names. */
+    var src = document.documentElement.outerHTML;
+    var m = src.match(/myfantasyleague\.com[^"'`<]*[?&]L=(\d+)/i);
+    if(m) throw new Error("a MyFantasyLeague league number is baked in: L=" + m[1]);
+    /* And the bookmarklet must refuse rather than invent one. */
+    applyLeague("mfl12");
+    var had = draftIdFor("mfl12");
+    setDraftId("mfl12", "");
+    refreshBookmarklet("mfl12");
+    var code = document.getElementById("bmCode").value;
+    if(/[?&]L=\d/.test(code))
+      throw new Error("bookmarklet built a league URL with no id saved");
+    if(code.indexOf("league ID") < 0)
+      throw new Error("bookmarklet gave no useful message: " + code.slice(0, 60));
+    /* With an id, it uses that one and no other. */
+    setDraftId("mfl12", "99999");
+    refreshBookmarklet("mfl12");
+    code = document.getElementById("bmCode").value;
+    if(code.indexOf("L=99999") < 0) throw new Error("stored league id not used");
+    setDraftId("mfl12", had);
+    refreshBookmarklet("mfl12");
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
