@@ -13,7 +13,8 @@
 <meta name="apple-mobile-web-app-title" content="War Room">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-<script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */</script>
+<script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
+window.BUILD = "2026-08-21 01:09 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -429,6 +430,7 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
               <input type="checkbox" id="liveOn"> <strong>Live sync</strong> — read this draft from Sleeper every 15s
             </label>
             <div id="liveMsg" style="font-size:12.5px; margin-top:6px"></div>
+            <div id="buildId" class="faint" style="font-size:11px; margin-top:8px"></div>
             <div style="display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap">
               <label class="fld" style="flex:1; min-width:190px">
                 Draft ID
@@ -3596,6 +3598,7 @@ function refreshBookmarklet(key){
 function dataStamp(){
   const el = $("#dataMsg");
   if(!el) return;
+  buildStamp();
   if(!LIVEDATA){
     el.innerHTML = '<span class="faint">Built-in snapshot (Aug 16). '
       + (window.LIVE_CAPABLE ? "Refreshing…" : "This build cannot fetch live data.") + "</span>";
@@ -3610,6 +3613,40 @@ function dataStamp(){
     + " · ADP " + ({blend:"averaged across both markets",
                         board:"from mock-draft consensus",
                         sleeper:"from Sleeper drafts"}[state.adpSource || "blend"]) + "</span>";
+}
+
+/* Which build is on screen. A stale service worker once served a ten-minute-old
+   copy of this page, and nothing on screen said so - the only symptom was a feature
+   that was supposed to exist simply not being there. Printing the build removes that
+   whole class of confusion, and the check below turns it into a prompt. */
+function buildStamp(){
+  const el = $("#buildId");
+  if(!el) return;
+  el.textContent = window.BUILD ? ("build " + window.BUILD) : "local build";
+}
+
+async function checkForUpdate(){
+  if(!window.LIVE_CAPABLE || !window.BUILD) return;
+  try{
+    const r = await fetch(location.pathname + "?v=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) return;
+    const t = await r.text();
+    const m = t.match(/window\.BUILD = "([^"]+)"/);
+    if(!m || m[1] === window.BUILD) return;
+    const el = $("#buildId");
+    if(el) el.innerHTML = "build " + esc(window.BUILD) +
+      ' \u00b7 <a href="#" id="buildNew" class="good">a newer build is available - reload</a>';
+    const a = $("#buildNew");
+    if(a) a.addEventListener("click", function(ev){
+      ev.preventDefault();
+      if(navigator.serviceWorker){
+        navigator.serviceWorker.getRegistrations().then(function(rs){
+          rs.forEach(function(x){ x.update(); });
+          location.reload();
+        });
+      } else location.reload();
+    });
+  }catch(e){}
 }
 
 async function refreshLive(silent){
@@ -5852,7 +5889,15 @@ if(projRes && !projRes.error){
 if(mflRes && !mflRes.error){
   try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
 }
+buildStamp();
 if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
+/* Re-check on wake: a laptop shut for two days should not open a stale board. */
+if(window.LIVE_CAPABLE){
+  setTimeout(checkForUpdate, 4000);
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden) checkForUpdate();
+  });
+}
 
 window.addEventListener("hashchange", function(){
   const pj = applyProjHash();

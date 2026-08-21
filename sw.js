@@ -2,11 +2,13 @@
    The app HTML is network-first so a new deploy lands immediately; everything
    else same-origin is cache-first; API calls are never cached, because a draft
    board served from cache is worse than no board at all. */
-const VERSION = 'war-room-v1';
+const VERSION = 'war-room-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL); }).then(function () {
+  e.waitUntil(caches.open(VERSION).then(function (c) { return Promise.all(SHELL.map(function (u) {
+      return fetch(u, {cache: 'no-store'}).then(function (r) { return c.put(u, r); });
+    })); }).then(function () {
     return self.skipWaiting();
   }));
 });
@@ -26,8 +28,12 @@ self.addEventListener('fetch', function (e) {
 
   const isDoc = req.mode === 'navigate' || (req.headers.get('accept') || '').indexOf('text/html') > -1;
   if (isDoc) {
+    /* 'Network-first' is not enough on its own: a plain fetch() here is still allowed to
+       come out of the browser HTTP cache, and GitHub Pages sends a max-age. That served a
+       ten-minute-old build after a deploy. no-store forces a real round trip, so a fix
+       pushed on draft morning actually arrives. */
     e.respondWith(
-      fetch(req).then(function (res) {
+      fetch(req, {cache: 'no-store'}).then(function (res) {
         const copy = res.clone();
         caches.open(VERSION).then(function (c) { c.put('./index.html', copy); });
         return res;
