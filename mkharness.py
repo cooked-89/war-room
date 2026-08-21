@@ -1629,6 +1629,39 @@ harness = r'''
     clearPlaceholders();
   });
 
+  step("repeated-unknown-names-are-separate-picks",function(){
+    /* The fuzz soak found this: keying placeholders by name meant the same unknown
+       text twice produced one id twice, which reads as a player drafted twice. */
+    applyLeague("sleeper12");
+    var res=applyNames(["Mystery Man", PLAYERS[0].name, "Mystery Man", "", "  "]);
+    if(state.picks.length!==3)
+      throw new Error("expected 3 picks (blanks skipped), got "+state.picks.length);
+    var ids=state.picks.map(function(pk){ return pk.playerId; });
+    if(new Set(ids).size !== ids.length) throw new Error("duplicate pick id");
+    if(res.missed.length!==2) throw new Error("expected 2 unmatched, got "+res.missed.length);
+    clearPlaceholders();
+  });
+
+  step("a-placeholder-on-my-roster-renders-cleanly",function(){
+    /* The fuzz soak found renders dying, then printing the literal word "undefined",
+       once a placeholder reached My Team. That path is real: he can draft someone
+       outside the top-200 board himself and the feed reports it back. */
+    applyLeague("sleeper12");
+    state.picks=[]; state.sim=false;
+    applyNames([PLAYERS[0].name, "Nobody From The Board"]);
+    state.picks.forEach(function(pk){ pk.team = myIdx(); });
+    var prevTab = state.tab;
+    state.tab = "team";
+    renderAll();
+    var html = document.getElementById("teamOut").innerHTML;
+    if(html.indexOf("undefined") >= 0)
+      throw new Error("undefined rendered in My Team");
+    if(html.indexOf("NaN") >= 0) throw new Error("NaN rendered in My Team");
+    if(html.indexOf("[object Object]") >= 0) throw new Error("raw object rendered");
+    state.tab = prevTab;
+    clearPlaceholders();
+  });
+
   step("placeholders-never-reach-the-board",function(){
     applyLeague("sleeper12");
     applyNames(["Totally Unknown Person", PLAYERS[0].name]);

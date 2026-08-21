@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 02:03 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 02:09 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -2880,16 +2880,49 @@ let NORM = new Map();
    rather than multiplying placeholders. */
 let OFFBOARD = new Map();
 
-function offBoardFor(name, pos, team){
-  const k = normName(name);
+function offBoardFor(name, pos, team, slot){
+  /* Identified by the slot it holds, not by the name. Two unmatched picks with the
+     same text are two different picks; sharing an id would read as one player taken
+     twice. applyNames rebuilds from slot zero every time, so a re-import of the same
+     feed regenerates exactly the same ids. */
+  const k = "off:" + slot + ":" + normName(name);
   if(OFFBOARD.has(k)) return OFFBOARD.get(k);
-  const rec = {id:"off:" + k, name:name, pos:pos || "NA", team:team || "",
-               adp:999, proj:0, vor:0, tier:0, tags:[], note:"", offBoard:true};
+  const rec = makeOffBoard(k, name, pos, team);
   OFFBOARD.set(k, rec);
   /* Usable straight away: rosterOf and every render resolve picks through byId, so a
      placeholder that only appears at the next league rebuild would render as a hole
      in the middle of a live draft. */
   byId.set(rec.id, rec);
+  return rec;
+}
+
+/* Built from a real player's own shape rather than a hand-listed set of fields:
+   the renderers reach for whatever they reach for, and a list written today rots the
+   moment one of them gains a column. Every key a board player has, a placeholder has,
+   zeroed - so nothing can read undefined off it. */
+function makeOffBoard(id, name, pos, team){
+  const rec = {};
+  const template = PLAYERS.length ? PLAYERS[0] : null;
+  if(template){
+    Object.keys(template).forEach(function(f){
+      const v = template[f];
+      rec[f] = (typeof v === "number") ? 0
+             : Array.isArray(v)        ? []
+             : (typeof v === "string") ? ""
+             : (typeof v === "boolean")? false
+             : null;
+    });
+  }
+  rec.id = id;
+  rec.name = name;
+  rec.pos = pos || "NA";
+  rec.team = team || "";
+  rec.adp = 999;          // never near the top of an ADP sort
+  rec.proj = 0;
+  rec.bye = null;         // renders as an em dash rather than "bye 0"
+  rec.tags = [];
+  rec.note = "";
+  rec.offBoard = true;
   return rec;
 }
 
@@ -3072,7 +3105,7 @@ function save(){
       picks:state.picks, byLeague:state.byLeague, orderByLeague:state.orderByLeague,
       star:[...state.star], avoid:[...state.avoid],
       offBoard:[...OFFBOARD.values()].map(function(r){
-        return {name:r.name, pos:r.pos, team:r.team}; })
+        return {id:r.id, name:r.name, pos:r.pos, team:r.team}; })
     }));
   }catch(e){/* private mode — run without persistence */}
 }
@@ -3088,7 +3121,8 @@ function load(){
     /* Rebuild placeholders BEFORE picks are restored, or the byId filter below
        drops them and the board silently shifts back. */
     if(Array.isArray(d.offBoard)) d.offBoard.forEach(function(r){
-      if(r && typeof r.name === "string") offBoardFor(r.name, r.pos, r.team);
+      if(!r || typeof r.name !== "string" || typeof r.id !== "string") return;
+      OFFBOARD.set(r.id, makeOffBoard(r.id, r.name, r.pos, r.team));
     });
     reattachOffBoard();
     if(typeof d.liveOn === "boolean") state.liveOn = d.liveOn;
@@ -4115,8 +4149,11 @@ function lastName(full){
   return parts[parts.length-1];
 }
 const POS_LABEL = {DEF:"DST", PK:"K", QB:"QB", RB:"RB", WR:"WR", TE:"TE"};
+/* Any position the table does not know - a placeholder for an unmatched pick -
+   falls back to its own text rather than printing "undefined" at the user. */
+const posLabel = p => POS_LABEL[p && p.pos] || (p && p.pos) || "—";
 const POS_VAR   = {DEF:"def", PK:"k", QB:"qb", RB:"rb", WR:"wr", TE:"te"};
-const posPill = p=>`<span class="pos ${p.pos}">${POS_LABEL[p.pos]}${
+const posPill = p=>`<span class="pos ${p.pos}">${posLabel(p)}${
   (p.pos==="PK"||p.pos==="DEF") ? "" : p.posRank}</span>`;
 
 /* Sleeper reports injury status on the projection feed; surfacing it is free and
@@ -4438,7 +4475,7 @@ function renderDBoard(){
       const teamHere = teamOnClock(ov);
       const p = pk ? byId.get(pk.playerId) : null;
       body += `<td class="${teamHere===myIdx()?"mine":""}">${
-        p ? `${esc(lastName(p.name))}<div class="mini">${POS_LABEL[p.pos]} ${p.team}</div>` : ""
+        p ? `${esc(lastName(p.name))}<div class="mini">${posLabel(p)} ${p.team}</div>` : ""
       }</td>`;
     }
     body += "</tr>";
@@ -4890,7 +4927,10 @@ function evaluateTrade(){
 function renderTrade(){
   const host = $("#tradeOut");
   if(!host) return;
-  const roster = rosterOf(myIdx());
+  /* Placeholders hold a draft slot; they are not assets. They also carry a string
+     id, which the click handler coerces with +, so leaving them in offers a trade of
+     NaN. */
+  const roster = rosterOf(myIdx()).filter(function(p){ return !p.offBoard; });
   if(!roster.length){
     host.innerHTML = '<p class="muted" style="margin:0; font-size:13px">Draft a team first.</p>';
     return;
@@ -4898,7 +4938,7 @@ function renderTrade(){
   const chip = function(p, on, act){
     return '<button class="btn sm" data-' + act + '="' + p.id + '" style="' +
       (on ? "background:var(--gold); border-color:var(--gold); color:#12150F; font-weight:600" : "") +
-      '">' + POS_LABEL[p.pos] + " " + esc(p.name.split(" ").slice(-1)[0]) +
+      '">' + posLabel(p) + " " + esc(p.name.split(" ").slice(-1)[0]) +
       (p.vorp===null ? "" : " " + (p.vorp>0?"+":"") + p.vorp.toFixed(0)) + "</button>";
   };
 
@@ -5449,13 +5489,14 @@ function applyNames(names, meta){
   const missed = [];
   names.forEach(function(nm, i){
     if(state.picks.length >= totalPicks()) return;
+    if(!String(nm || "").trim()) return;   // no pick here, so no slot to preserve
     const p = NORM.get(normName(nm));
     if(!p){
       /* Unknown to the board, but it still happened. Hold the slot so every pick
          after it keeps its true number. */
       missed.push(nm);
       const m = (meta && meta[i]) || {};
-      makePick(offBoardFor(nm, m.pos, m.team).id);
+      makePick(offBoardFor(nm, m.pos, m.team, state.picks.length).id);
       return;
     }
     if(takenIds().has(p.id)) return;
