@@ -2108,6 +2108,42 @@ harness = r'''
     NEWS = []; saveNews(); indexNews(); renderNews();
   });
 
+  step("colour-stays-readable-in-both-themes",function(){
+    /* Colour was added to the board to be scanned in a dim room on a phone. A hue
+       that looks good and cannot be read is worse than the grey it replaced, and
+       the dark-theme kicker pill was exactly that at 4.1 to 1. */
+    function lum(rgb){
+      var m=rgb.match(/\d+/g).map(Number).slice(0,3).map(function(v){
+        v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
+      return 0.2126*m[0]+0.7152*m[1]+0.0722*m[2];
+    }
+    function ratio(a,b){
+      var l1=lum(a), l2=lum(b), hi=Math.max(l1,l2), lo=Math.min(l1,l2);
+      return (hi+0.05)/(lo+0.05);
+    }
+    var root=document.documentElement;
+    var had=root.getAttribute("data-theme");
+    var worst=[];
+    ["light","dark"].forEach(function(theme){
+      root.setAttribute("data-theme", theme);
+      var probes=[];
+      ["QB","RB","WR","TE","PK","DEF"].forEach(function(p){ probes.push(["pos "+p, p]); });
+      for(var i=0;i<8;i++) probes.push(["tierpill t"+i, "tier"+i]);
+      probes.forEach(function(pr){
+        var el=document.createElement("span");
+        el.className=pr[0]; el.textContent="X";
+        document.body.appendChild(el);
+        var c=getComputedStyle(el);
+        var r=ratio(c.color, c.backgroundColor);
+        el.remove();
+        if(r < 4.5) worst.push(theme+" "+pr[1]+" "+(Math.round(r*10)/10));
+      });
+    });
+    if(had) root.setAttribute("data-theme", had); else root.removeAttribute("data-theme");
+    if(worst.length)
+      throw new Error("below 4.5:1 - " + worst.join(", "));
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
