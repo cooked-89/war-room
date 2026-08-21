@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 12:41 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 15:09 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -30,8 +30,16 @@ window.BUILD = "2026-08-21 12:41 UTC";       /* stamped at build time; shown in 
   --line:#DEDDD6; --line-2:#C9C8BF;
   --gold:#A9762A; --gold-soft:#F2E6CD; --gold-line:#D9BE84;
   --good:#22683A; --bad:#A93221; --warn:#9A6B1F;
-  --qb:#B94E28; --rb:#2A7355; --wr:#37559F; --te:#7E4590; --k:#6C7178; --def:#456371;
+  --qb:#C2410C; --rb:#047857; --wr:#1D4ED8; --te:#7E22CE; --k:#57534E; --def:#0E7490;
   --qb-bg:#F7E4DB; --rb-bg:#DCEDE5; --wr-bg:#DFE6F7; --te-bg:#EEE0F2; --k-bg:#E8EAEC; --def-bg:#DFE9ED;
+  /* Solid pill fills - position is the first thing the eye looks for. */
+  --qb-solid:#C2410C; --rb-solid:#047857; --wr-solid:#1D4ED8;
+  --te-solid:#7E22CE; --k-solid:#57534E; --def-solid:#0E7490;
+  --on-solid:#FFFFFF;
+  /* One hue per tier, cycling. The point is the edge between them. */
+  --t1:#B45309; --t2:#047857; --t3:#1D4ED8; --t4:#7E22CE;
+  --t5:#BE123C; --t6:#0E7490; --t7:#4D7C0F; --t8:#7C3AED;
+  --glow:rgba(169,118,42,.30);
   --shadow:0 1px 2px rgba(25,28,26,.06),0 4px 14px rgba(25,28,26,.05);
   --display:Georgia,"Iowan Old Style","Times New Roman",serif;
   --ui:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;
@@ -46,6 +54,12 @@ window.BUILD = "2026-08-21 12:41 UTC";       /* stamped at build time; shown in 
     --good:#63BE79; --bad:#E0705A; --warn:#D9A441;
     --qb:#E07C50; --rb:#4EAC85; --wr:#7A9CEA; --te:#BA85C8; --k:#989EA4; --def:#7BA3B2;
     --qb-bg:#33201A; --rb-bg:#17301F; --wr-bg:#1B2440; --te-bg:#2C1D33; --k-bg:#25282A; --def-bg:#1B2A31;
+    --qb-solid:#EA580C; --rb-solid:#059669; --wr-solid:#3B82F6;
+    --te-solid:#A855F7; --k-solid:#78716C; --def-solid:#0891B2;
+    --on-solid:#0B0D0B;
+    --t1:#F59E0B; --t2:#10B981; --t3:#60A5FA; --t4:#C084FC;
+    --t5:#FB7185; --t6:#22D3EE; --t7:#A3E635; --t8:#C4B5FD;
+    --glow:rgba(217,164,65,.28);
     --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
   }
 }
@@ -57,8 +71,77 @@ window.BUILD = "2026-08-21 12:41 UTC";       /* stamped at build time; shown in 
   --good:#63BE79; --bad:#E0705A; --warn:#D9A441;
   --qb:#E07C50; --rb:#4EAC85; --wr:#7A9CEA; --te:#BA85C8; --k:#989EA4; --def:#7BA3B2;
   --qb-bg:#33201A; --rb-bg:#17301F; --wr-bg:#1B2440; --te-bg:#2C1D33; --k-bg:#25282A; --def-bg:#1B2A31;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+  --qb-solid:#EA580C; --rb-solid:#059669; --wr-solid:#3B82F6;
+    --te-solid:#A855F7; --k-solid:#78716C; --def-solid:#0891B2;
+    --on-solid:#0B0D0B;
+    --t1:#F59E0B; --t2:#10B981; --t3:#60A5FA; --t4:#C084FC;
+    --t5:#FB7185; --t6:#22D3EE; --t7:#A3E635; --t8:#C4B5FD;
+    --glow:rgba(217,164,65,.28);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
 }
+
+/* A spectrum rule under the masthead, built from the position palette, so the
+   header states the app's colour language before you have read a word. */
+header.top{position:relative}
+header.top::after{
+  content:""; position:absolute; left:0; right:0; bottom:-1px; height:3px;
+  background:linear-gradient(90deg, var(--qb-solid), var(--rb-solid), var(--wr-solid),
+             var(--te-solid), var(--def-solid));
+}
+.masthead h1{
+  background:linear-gradient(92deg, var(--ink) 30%, var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+
+/* Tabs read as a row of switches rather than words with a hairline. */
+.tab{border-radius:8px 8px 0 0}
+.tab:hover{background:var(--surface-2)}
+.tab[aria-selected="true"]{
+  background:linear-gradient(180deg, transparent, var(--gold-soft));
+  border-bottom-width:3px;
+}
+
+/* Cards get an edge in the accent so a page of them has some rhythm. */
+.card{position:relative; overflow:hidden}
+.card::before{
+  content:""; position:absolute; top:0; left:0; right:0; height:3px;
+  background:linear-gradient(90deg, var(--gold), var(--gold-line));
+  opacity:.85;
+}
+
+/* The one state worth shouting about. */
+.onclock{
+  background:linear-gradient(135deg, var(--gold-soft), var(--surface));
+  border-width:2px; box-shadow:0 0 0 4px var(--glow), var(--shadow);
+}
+.onclock .big{background:linear-gradient(92deg, var(--ink), var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent;}
+.onclock.idle{
+  background:var(--surface-2); border-width:1px; box-shadow:none;
+}
+.onclock.idle .big{background:none; color:var(--ink)}
+
+/* Value, as a length rather than only a number. */
+.vorwrap{position:relative; display:inline-block; min-width:46px; padding-bottom:4px}
+.vorbar{
+  position:absolute; left:0; right:auto; bottom:0; height:3px; border-radius:2px;
+  background:linear-gradient(90deg, var(--rb-solid), var(--gold)); opacity:.85;
+}
+.vorbar.neg{background:var(--bad); opacity:.5}
+
+/* Tier as a colour, because the edge between tiers is the whole idea. */
+.tierpill{
+  display:inline-block; min-width:26px; text-align:center; border-radius:3px;
+  font-family:var(--mono); font-size:10.5px; font-weight:700; padding:2px 4px;
+  color:var(--on-solid);
+}
+.tierpill.t1{background:var(--t1)} .tierpill.t2{background:var(--t2)}
+.tierpill.t3{background:var(--t3)} .tierpill.t4{background:var(--t4)}
+.tierpill.t5{background:var(--t5)} .tierpill.t6{background:var(--t6)}
+.tierpill.t7{background:var(--t7)} .tierpill.t0{background:var(--t8)}
+
+/* A tier boundary should look like a shelf. */
+.tier-top td{border-top:2px solid var(--gold-line) !important}
 
 *{box-sizing:border-box}
 body{
@@ -91,16 +174,17 @@ main{padding:22px 0 70px}
 
 /* ---------- generic bits ---------- */
 .pos{
-  display:inline-block; min-width:30px; text-align:center;
+  display:inline-block; min-width:34px; text-align:center;
+  color:var(--on-solid) !important; box-shadow:0 1px 2px rgba(0,0,0,.18);
   font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:.04em;
   padding:2px 5px; border-radius:3px;
 }
-.pos.QB{color:var(--qb); background:var(--qb-bg)}
-.pos.RB{color:var(--rb); background:var(--rb-bg)}
-.pos.WR{color:var(--wr); background:var(--wr-bg)}
-.pos.TE{color:var(--te); background:var(--te-bg)}
-.pos.PK{color:var(--k);  background:var(--k-bg)}
-.pos.DEF{color:var(--def); background:var(--def-bg)}
+.pos.QB{background:var(--qb-solid)}
+.pos.RB{background:var(--rb-solid)}
+.pos.WR{background:var(--wr-solid)}
+.pos.TE{background:var(--te-solid)}
+.pos.PK{background:var(--k-solid)}
+.pos.DEF{background:var(--def-solid)}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums}
 .muted{color:var(--ink-2)}
 .faint{color:var(--ink-3)}
@@ -166,7 +250,7 @@ tr.gone td{opacity:.34}
 tr.gone .pname{text-decoration:line-through}
 tr.tier-top td{border-top:2px solid var(--line-2)}
 .pname{font-weight:600}
-.stripe{width:3px; padding:0 !important}
+.stripe{width:5px; padding:0 !important; border-radius:0 3px 3px 0}
 .stripe.QB{background:var(--qb)} .stripe.RB{background:var(--rb)} .stripe.WR{background:var(--wr)}
 .stripe.TE{background:var(--te)} .stripe.PK{background:var(--k)} .stripe.DEF{background:var(--def)}
 .tiermark{font-family:var(--mono); font-size:11px; color:var(--ink-3)}
@@ -4558,7 +4642,13 @@ function adpGapNote(p){
 function vorpCell(p){
   if(p.vorp===null) return '<span class="faint">—</span>';
   const cls = p.vorp>0 ? "good" : (p.vorp<0 ? "faint" : "muted");
-  return '<span class="'+cls+'">'+(p.vorp>0?"+":"")+p.vorp.toFixed(0)+'</span>';
+  /* Scaled against a fixed ceiling rather than the current maximum, so a player's
+     bar means the same thing on every league and after every filter. */
+  const pct = Math.max(4, Math.min(100, Math.abs(p.vorp) / 170 * 100));
+  return '<span class="vorwrap">' +
+         '<span class="vorbar' + (p.vorp < 0 ? " neg" : "") + '" style="width:' +
+         pct.toFixed(0) + '%"></span>' +
+         '<span class="' + cls + '">' + (p.vorp>0?"+":"") + p.vorp.toFixed(0) + "</span></span>";
 }
 
 function tagChips(p){
@@ -4596,7 +4686,7 @@ function renderBoard(){
       <td>${posPill(p)}</td>
       <td class="faint">${p.team}</td>
       <td class="num faint">${p.bye??"—"}</td>
-      <td class="tiermark">T${p.tier}</td>
+      <td class="tiermark"><span class="tierpill t${p.tier % 8}">T${p.tier}</span></td>
       <td class="num">${p.proj===null?'<span class="faint">—</span>':p.proj.toFixed(0)}</td>
       <td class="num">${vorpCell(p)}</td>
       <td>${(p.pos==="PK"||p.pos==="DEF")?'<span class="faint">—</span>':sosCell(p.team,"playoff")}</td>
