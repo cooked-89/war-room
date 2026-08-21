@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 03:51 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 04:19 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -4391,7 +4391,13 @@ function recommend(){
     const need = needScore(roster,pos,round,NEUTRAL,NEED);
     if(need<=0 && !forced) return;
     byPos[pos].slice(0,4).forEach((p,i)=>{
-      const reach = Math.max(0, p.adp - (here+1));
+      /* Survival first: it decides whether reaching for him costs anything at all. */
+      const surv = survival(p, here + 1, nextMine === null ? null : nextMine + 1);
+      p._surv = surv;
+      /* Going early on a player only wastes a pick if he might have lasted. Weighting
+         the penalty by his chance of surviving stops it arguing with the survival term
+         below, which was quietly costing the better player at the top of a draft. */
+      const reach = Math.max(0, p.adp - (here+1)) * (window.REACH_SURV === false ? 1 : surv);
       let score = need * Math.exp(-i/2.2) * Math.exp(-reach/22);
       /* Value has to lead, not merely break ties. At the old weight a six-point
          edge over replacement moved the score by 3%, which every other term
@@ -4402,8 +4408,6 @@ function recommend(){
          whole draft. */
       if(p.vorp !== null && p.vorp > 0) score *= (1 + Math.min(p.vorp, 200) / 35);
       /* Between two similar players, take the one who will not be there next time. */
-      const surv = survival(p, here + 1, nextMine === null ? null : nextMine + 1);
-      p._surv = surv;
       score *= (1.25 - 0.5 * surv);
       if(/^(Out|IR|PUP|DNR|NA|Doubtful)$/i.test(p.inj || "")) score *= 0.45;
       if(state.star.has(p.id)) score *= 1.35;

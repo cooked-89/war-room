@@ -1801,6 +1801,51 @@ harness = r'''
     applyLeague("sleeper12");
   });
 
+  step("no-reach-penalty-for-a-player-who-cannot-last",function(){
+    /* Reaching only wastes a pick if he might have been there next time. At Robert's
+       third overall pick, with the top two backs gone, McCaffrey was worth 131 over
+       replacement to Nacua's 113 - taking the back and filling receiver later is worth
+       about 18 roster points - and the board took Nacua anyway, by 3%, purely because
+       Nacua goes at ADP 3.1 and McCaffrey at 6.3, so "reaching" three picks cost 14%.
+       The same loop had McCaffrey surviving to the next pick 0% of the time. The two
+       terms were arguing and the wrong one won.
+
+       Stated without naming players: if A is clearly worth more than B, A goes later
+       in ADP than B, and NEITHER can survive to my next pick, then A must be ranked
+       first. There is no version of waiting that gets me A. */
+    applyLeague("mfl12");
+    state.picks=[]; state.sim=false; state.slot=3;
+    /* Clear the two most valuable players, which is the situation at his real third
+       pick: the elite backs are gone and the choice is the next back against the top
+       receiver. While those two are still on the board McCaffrey is correctly marked
+       down for being the third back available, so the fault does not appear. */
+    var byVor = PLAYERS.slice().sort(function(a,b){ return (b.vorp||0)-(a.vorp||0); });
+    makePick(byVor[0].id); makePick(byVor[1].id);
+    var rec = recommend();
+    if(rec.length < 4) throw new Error("too few recommendations");
+    var here = state.picks.length + 1;
+    var nextMine = null;
+    for(var ov=here; ov<totalPicks(); ov++) if(teamOnClock(ov)===myIdx()){ nextMine=ov; break; }
+    var pool = rec.slice(0, 10).map(function(r,idx){
+      return {p:r.p, order:idx, surv:survival(r.p, here, nextMine===null?null:nextMine+1)};
+    }).filter(function(x){ return x.surv < 0.05; });
+    var checked = 0;
+    pool.forEach(function(a){
+      pool.forEach(function(b){
+        if(a===b) return;
+        if((a.p.vorp||0) < (b.p.vorp||0) + 12) return;   // A must be clearly better
+        if(a.p.adp <= b.p.adp) return;                   // and A must be the "reach"
+        checked++;
+        if(a.order > b.order)
+          throw new Error("ranked "+b.p.name+" ("+Math.round(b.p.vorp)+", adp "+
+            b.p.adp.toFixed(1)+") above "+a.p.name+" ("+Math.round(a.p.vorp)+", adp "+
+            a.p.adp.toFixed(1)+") though neither can last");
+      });
+    });
+    if(!checked) throw new Error("no comparable pair found - test proves nothing");
+    state.picks=[]; state.sim=false;
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
