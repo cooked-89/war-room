@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 02:11 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-21 03:29 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -4031,7 +4031,7 @@ function nextMyPick(){
 /* Each AI team gets its own temperament, derived from the draft seed so it stays
    stable across re-renders. Without this every team wants its quarterback in the
    same round and the sim produces an absurd seven-QB run; real rooms stagger. */
-const NEUTRAL = {qbRound:8, teRound:7, rbBias:1};
+const NEUTRAL = {qbRound:8, teRound:7, rbBias:1, valueTrust:1};
 function hash32(s){
   let h=2166136261;
   for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
@@ -4043,7 +4043,10 @@ function teamStyle(t){
   return {
     qbRound: 5 + (h % 9),            // wants a QB somewhere in rounds 5–13
     teRound: 4 + ((h>>>4) % 9),      // and a TE in rounds 4–12
-    rbBias : 0.85 + ((h>>>8) % 9)/20 // some rooms are backfield-hungry, some aren't
+    rbBias : 0.85 + ((h>>>8) % 9)/20, // some rooms are backfield-hungry, some aren't
+    /* How hard a manager leans on value versus the consensus order. Around 1 is a
+       manager reading a ranking list; below it, someone drafting their guys. */
+    valueTrust: 0.55 + ((h>>>12) % 11)/10
   };
 }
 
@@ -4111,9 +4114,24 @@ function aiPick(team){
     if(need<=0) return;
     if((pos==="QB"||pos==="TE") && round < state.rounds-4)
       need /= (1 + 0.45*(recent[pos]||0));
-    byPos[pos].slice(0,3).forEach((p,i)=>{
+    /* Managers read rankings, and rankings carry projections, so the field is not
+       blind to value - it is just noisier about it than we are. `edge` is this
+       player's value over the next man up at his own position, which is what a
+       ranking list actually communicates. Style shifts how much a manager trusts
+       value over the consensus order. */
+    const pool = byPos[pos].slice(0, 4);
+    const tail = pool.length > 1 ? pool[pool.length-1] : null;
+    pool.forEach((p,i)=>{
       const reach = Math.max(0, p.adp - here);
-      const s = need * Math.exp(-i/2.0) * Math.exp(-reach/18) * (0.75 + Math.random()*0.55);
+      let edge = 1;
+      if(tail && p.vorp !== null && p.vorp !== undefined &&
+         tail.vorp !== null && tail.vorp !== undefined){
+        /* Scaled so a 40-point gap over the next option is worth roughly double. */
+        edge = 1 + Math.max(0, p.vorp - tail.vorp) / 40;
+      }
+      const trust = style && style.valueTrust ? style.valueTrust : 1;
+      const s = need * Math.pow(edge, trust) * Math.exp(-i/2.4)
+              * Math.exp(-reach/18) * (0.75 + Math.random()*0.55);
       if(s>bestScore){ bestScore=s; best=p; }
     });
   });

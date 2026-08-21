@@ -1718,6 +1718,34 @@ harness = r'''
     clearPlaceholders();
   });
 
+  step("a-mock-is-a-contest-not-a-demonstration",function(){
+    /* The symptom that started this: twelve MFL mocks put my team first in eleven of
+       them. aiPick chose on ADP and need alone while recommend() optimises vorp and
+       proj, and rosters are then scored by proj - so the field was playing a different
+       game from the one being marked. Testing the field's scoring function directly
+       proved too loose to catch that (the top player by ADP is usually the top player
+       by value too), so this asserts the outcome instead, which is what actually
+       matters and what actually broke. */
+    applyLeague("mfl12");
+    var firsts=0, trials=8;
+    for(var k=0;k<trials;k++){
+      state.slot=(k%12)+1; state.picks=[]; state.sim=true; state.seed=String(9000+k);
+      var need=state.teams*state.rounds, g=0;
+      runSim();
+      while(state.picks.length<need && g++<800){
+        var r=recommend(); if(!r.length) break; makePick(r[0].p.id); runSim();
+      }
+      var all=[]; for(var t=0;t<state.teams;t++) all.push(bestLineup(rosterOf(t)).points);
+      var mine=bestLineup(rosterOf(myIdx())).points;
+      if(Math.max.apply(null,all) === mine) firsts++;
+    }
+    /* A good tool should win more than its share of a twelve-team room, but winning
+       nearly every time means the field is not competing. */
+    if(firsts/trials > 0.6)
+      throw new Error("recommender finished first in "+firsts+"/"+trials+" mocks");
+    state.picks=[]; state.sim=false;
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */
