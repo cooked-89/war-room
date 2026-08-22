@@ -2060,17 +2060,38 @@ harness = r'''
     NEWS = []; saveNews(); indexNews();
   });
 
-  step("news-drops-what-is-too-old",function(){
+  step("news-is-kept-not-expired",function(){
+    /* It used to prune at three weeks, which was my caution about storage rather than
+       anything he asked for. He wants a player's file to grow all season, so age is
+       no longer a reason to drop anything - only running out of room is. */
     NEWS = []; saveNews(); indexNews();
     var now = Date.now();
     mergeNews([
-      {id:"fresh", head:"Recent", desc:"", by:"", url:"", at:now-86400000, who:[]},
-      {id:"stale", head:"Ancient", desc:"", by:"", url:"", at:now-60*86400000, who:[]}
+      {id:"recent",  head:"Yesterday",   desc:"", by:"", url:"", at:now-86400000, who:[]},
+      {id:"ancient", head:"Last season", desc:"", by:"", url:"", at:now-200*86400000, who:[]}
     ]);
-    if(NEWS.some(function(x){ return x.id==="stale"; }))
-      throw new Error("kept a two-month-old story");
-    if(!NEWS.some(function(x){ return x.id==="fresh"; }))
-      throw new Error("dropped a story from yesterday");
+    if(!NEWS.some(function(x){ return x.id==="ancient"; }))
+      throw new Error("threw away an old story he asked to keep");
+    if(!NEWS.some(function(x){ return x.id==="recent"; }))
+      throw new Error("lost a recent story");
+    if(NEWS[0].id !== "recent") throw new Error("not newest first");
+    NEWS = []; saveNews(); indexNews();
+  });
+
+  step("news-sheds-oldest-first-when-full",function(){
+    /* Storage is the only real limit, so when it bites the oldest go and the newest
+       stay - the reverse would be worse than pruning by age. */
+    NEWS = []; indexNews();
+    var now = Date.now(), batch = [];
+    for(var i=0;i<NEWS_MAX+50;i++)
+      batch.push({id:"b"+i, head:"Story "+i, desc:"", by:"", url:"", at:now-i*3600000, who:[]});
+    mergeNews(batch);
+    if(NEWS.length > NEWS_MAX)
+      throw new Error("held "+NEWS.length+", above the cap of "+NEWS_MAX);
+    if(!NEWS.some(function(x){ return x.id==="b0"; }))
+      throw new Error("dropped the newest story");
+    if(NEWS.some(function(x){ return x.id==="b"+(NEWS_MAX+49); }))
+      throw new Error("kept the oldest story over a newer one");
     NEWS = []; saveNews(); indexNews();
   });
 
@@ -2231,6 +2252,77 @@ harness = r'''
     if(!box.checked) throw new Error("came back with live sync switched off");
     liveSyncStop("");
     state.liveOn = false;
+  });
+
+  step("the-player-panel-carries-every-section",function(){
+    /* All of this existed and none of it was in one place - you cannot go and read
+       five tabs while the clock runs. */
+    applyLeague("mfl12");
+    setDraftOrder(null);
+    state.picks=[]; state.sim=false;
+    NEWS=[]; indexNews();
+    var p = PLAYERS.filter(function(x){ return x.pos==="RB" && x.team && x.proj; })[0];
+    if(!p) throw new Error("no suitable player to open");
+    mergeNews([{id:"pp1", head:"A story about him", desc:"Details.", by:"A Reporter",
+                url:"https://example.invalid/x", at:Date.now()-3600000, who:[p.name]}]);
+    openPlayer(p.id);
+    if(document.getElementById("pcard").hidden) throw new Error("panel did not open");
+    var t = document.getElementById("pcardBody").textContent;
+    [p.name, "Read", "Projections", "News", "depth at", "Schedule"].forEach(function(need){
+      if(t.indexOf(need) < 0) throw new Error("panel missing: " + need);
+    });
+    if(t.indexOf("A story about him") < 0) throw new Error("his news is not in the panel");
+    if(t.indexOf("undefined") >= 0) throw new Error("undefined rendered in the panel");
+    if(t.indexOf("NaN") >= 0) throw new Error("NaN rendered in the panel");
+    if(t.indexOf("[object Object]") >= 0) throw new Error("raw object rendered");
+    closePlayer();
+    if(!document.getElementById("pcard").hidden) throw new Error("panel did not close");
+    NEWS=[]; saveNews(); indexNews();
+  });
+
+  step("the-panel-still-opens-after-he-is-drafted",function(){
+    /* "Who took Achane" is a question asked all night, so the panel has to work on a
+       player already gone and say who has him. */
+    applyLeague("mfl12");
+    setDraftOrder(null);
+    state.picks=[]; state.sim=false;
+    delete ROOM.mfl12;
+    var names=[]; for(var i=0;i<12;i++) names.push("Team Name "+(i+1));
+    setRoomNames("mfl12", names);
+    var byAdp = PLAYERS.slice().sort(function(a,b){ return a.adp-b.adp; });
+    var victim = byAdp[1];
+    applyNames([byAdp[0].name, victim.name]);
+    var pick = state.picks[1];
+    openPlayer(victim.id);
+    var t = document.getElementById("pcardBody").textContent;
+    if(t.indexOf("taken") < 0) throw new Error("panel does not say he is gone");
+    var owner = pick.team === myIdx() ? "you" : teamName(pick.team);
+    if(t.indexOf(owner) < 0)
+      throw new Error("panel does not name who has him (expected " + owner + ")");
+    if(t.indexOf("undefined") >= 0) throw new Error("undefined rendered once drafted");
+    closePlayer();
+    delete ROOM.mfl12; saveRoom();
+    state.picks=[]; state.sim=false;
+  });
+
+  step("a-kicker-panel-does-not-fall-apart",function(){
+    /* Kickers and defences have no depth chart, no source breakdown and usually no
+       news - the panel has to say so rather than render holes. */
+    applyLeague("cbs12");
+    state.rounds = LEAGUES.cbs12.rounds;
+    state.picks=[]; state.sim=false;
+    var k = PLAYERS.filter(function(x){ return x.pos==="PK"; })[0];
+    var d = PLAYERS.filter(function(x){ return x.pos==="DEF"; })[0];
+    [k, d].forEach(function(p){
+      if(!p) return;
+      openPlayer(p.id);
+      var t = document.getElementById("pcardBody").textContent;
+      if(t.indexOf("undefined") >= 0) throw new Error(p.pos + " panel rendered undefined");
+      if(t.indexOf("NaN") >= 0) throw new Error(p.pos + " panel rendered NaN");
+      if(t.indexOf(p.name) < 0) throw new Error(p.pos + " panel lost the name");
+      closePlayer();
+    });
+    applyLeague("mfl12");
   });
 
   step("only-one-poller-exists",function(){

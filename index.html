@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-22 14:22 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-22 15:27 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -142,6 +142,46 @@ header.top::after{
 
 /* A tier boundary should look like a shelf. */
 .tier-top td{border-top:2px solid var(--gold-line) !important}
+
+#pcard{position:fixed; inset:0; z-index:60; display:flex;
+  align-items:flex-end; justify-content:center}
+#pcardBack{position:absolute; inset:0; background:rgba(12,14,12,.55)}
+#pcardBody{
+  position:relative; width:min(720px,100%); max-height:88vh; overflow:auto;
+  background:var(--surface); border:1px solid var(--line-2);
+  border-radius:14px 14px 0 0; box-shadow:0 -8px 40px rgba(0,0,0,.30);
+  padding:16px 16px 26px;
+}
+@media (min-width:760px){
+  #pcard{align-items:center}
+  #pcardBody{border-radius:14px}
+}
+#pcardBody h4{font-family:var(--display); font-size:13px; letter-spacing:.02em;
+  text-transform:uppercase; color:var(--ink-3); margin:16px 0 7px}
+#pcardBody h4:first-of-type{margin-top:10px}
+.pcHead{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap}
+.pcHead .nm{font-family:var(--display); font-size:23px; font-weight:600; line-height:1.15}
+.pcClose{margin-left:auto; background:none; border:1px solid var(--line-2);
+  border-radius:8px; color:var(--ink-2); font-size:18px; line-height:1;
+  padding:5px 10px; cursor:pointer}
+.pcGrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:9px}
+.pcStat{background:var(--surface-2); border:1px solid var(--line);
+  border-radius:8px; padding:8px 10px}
+.pcStat .k{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3)}
+.pcStat .v{font-family:var(--display); font-size:19px; font-weight:600}
+.pcRow{display:flex; gap:8px; align-items:baseline; padding:5px 0;
+  border-bottom:1px solid var(--line); font-size:13.5px}
+.pcRow:last-child{border-bottom:0}
+.pcWeeks{display:grid; grid-template-columns:repeat(9,1fr); gap:4px}
+.pcWk{border:1px solid var(--line); border-radius:5px; padding:4px 2px; text-align:center;
+  font-family:var(--mono); font-size:10px; background:var(--surface-2)}
+.pcWk .w{color:var(--ink-3); font-size:9px; display:block}
+.pcWk.bye{background:var(--surface-3); color:var(--ink-3)}
+.pcWk.po{border-color:var(--gold); background:var(--gold-soft)}
+.pcMe{background:var(--gold-soft) !important; border-color:var(--gold-line) !important}
+.pname{cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2);
+  text-underline-offset:3px}
+.pname:hover{text-decoration-color:var(--gold)}
 
 *{box-sizing:border-box}
 body{
@@ -490,6 +530,11 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
     <div>
       <div class="onclock" id="onclock"></div>
       <div id="alerts"></div>
+
+<div id="pcard" hidden>
+  <div id="pcardBack"></div>
+  <div id="pcardBody" role="dialog" aria-modal="true" aria-label="Player detail"></div>
+</div>
 
       <details class="card" id="syncCard" style="margin-bottom:16px">
         <summary class="card-h" style="cursor:pointer; list-style:none">
@@ -3617,8 +3662,10 @@ function attachProjections(key){
    Stored as {id, head, desc, by, url, at, who[]} - no article text is copied,
    only the headline, ESPN's own one-line description, and a link back. */
 const NEWS_KEY = "warroom.news.v1";
-const NEWS_MAX = 400;
-const NEWS_KEEP_DAYS = 21;
+/* Kept, not expired: a player's file should grow all season. The only real limit
+   is the origin's storage quota, so the cap is a count rather than an age, set high
+   enough that it is never the thing that bites first. */
+const NEWS_MAX = 4000;
 let NEWS = [];                        // newest first
 let NEWS_BY_PLAYER = new Map();       // normName -> [item, ...]
 
@@ -3642,7 +3689,17 @@ function indexNews(){
 }
 
 function saveNews(){
-  try{ localStorage.setItem(NEWS_KEY, JSON.stringify(NEWS.slice(0, NEWS_MAX))); }catch(e){}
+  /* If the quota is genuinely full, shed the oldest quarter and try again rather
+     than silently keeping nothing. */
+  for(let attempt = 0; attempt < 4; attempt++){
+    try{
+      localStorage.setItem(NEWS_KEY, JSON.stringify(NEWS));
+      return;
+    }catch(e){
+      if(NEWS.length < 40) return;
+      NEWS = NEWS.slice(0, Math.floor(NEWS.length * 0.75));
+    }
+  }
 }
 
 function mergeNews(items){
@@ -3652,8 +3709,7 @@ function mergeNews(items){
     if(!it || !it.id || seen.has(it.id)) return;
     seen.add(it.id); NEWS.push(it); added++;
   });
-  const cutoff = Date.now() - NEWS_KEEP_DAYS * 86400000;
-  NEWS = NEWS.filter(function(x){ return x.at && x.at >= cutoff; })
+  NEWS = NEWS.filter(function(x){ return x && x.at; })
              .sort(function(a,b){ return b.at - a.at; })
              .slice(0, NEWS_MAX);
   saveNews();
@@ -4719,6 +4775,165 @@ function tagChips(p){
   return p.tags.map(t=>`<span class="chip ${t}">${t}</span>`).join(" ");
 }
 
+/* ---------- one player, everything we hold ---------- */
+function pcStat(k, v, title){
+  return '<div class="pcStat"' + (title ? ' title="' + esc(title) + '"' : "") +
+         '><div class="k">' + esc(k) + '</div><div class="v">' + v + "</div></div>";
+}
+
+function pcSummary(p){
+  /* One paragraph a human would say out loud, assembled from what we actually know
+     rather than a template with blanks. */
+  const bits = [];
+  const rank = PLAYERS.filter(function(x){ return x.pos===p.pos && x.adp < p.adp; }).length + 1;
+  bits.push("The " + ordinal(rank) + " " + p.pos + " off the board at ADP " +
+            p.adp.toFixed(0) + ", in tier " + p.tier + ".");
+  if(p.vorp !== null){
+    bits.push(p.vorp > 0
+      ? "Worth " + Math.round(p.vorp) + " points more than a freely available " +
+        p.pos + " in this league."
+      : "Projects below what you could pick up for nothing at " + p.pos + ".");
+  }
+  if(p.projSpread > 25)
+    bits.push("The sources disagree by " + Math.round(p.projSpread) +
+              " points, so treat the projection as contested.");
+  if(p.depthGap && Math.abs(p.depthGap) >= 1){
+    bits.push(p.depthGap > 0
+      ? p.team + " lists him higher than the market drafts him."
+      : "The market drafts him ahead of where " + p.team + " lists him.");
+  }
+  if(p.adpLive !== null && p.adpBoard !== null && Math.abs(p.adpLive - p.adpBoard) >= 12){
+    bits.push("Mock drafts and real Sleeper drafts disagree on him by " +
+              Math.abs(Math.round(p.adpLive - p.adpBoard)) + " picks.");
+  }
+  if(p.inj) bits.push("Listed " + p.inj + ".");
+  if(p.note) bits.push(p.note);
+  return bits.join(" ");
+}
+
+function ordinal(n){
+  const s = ["th","st","nd","rd"], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function openPlayer(id){
+  const p = byId.get(id) || byId.get(String(id)) || byId.get(+id);
+  if(!p) return;
+  const host = $("#pcardBody");
+  const taken = state.picks.filter(function(pk){ return pk.playerId === p.id; })[0];
+
+  /* --- header --- */
+  let h = '<div class="pcHead">' + posPill(p) +
+    '<div><div class="nm">' + esc(p.name) + "</div>" +
+    '<div class="faint" style="font-size:12.5px">' + esc(p.team || "—") +
+      " · bye " + (p.bye == null ? "—" : p.bye) +
+      (taken
+        ? ' · <span class="bad">taken ' + roundOf(taken.overall) + "." +
+          String(pickInRound(taken.overall)).padStart(2,"0") + " by " +
+          esc(taken.team === myIdx() ? "you" : teamName(taken.team)) + "</span>"
+        : "") +
+    "</div></div>" +
+    '<button class="pcClose" id="pcX" aria-label="Close">&times;</button></div>';
+
+  /* --- the numbers --- */
+  const here = state.picks.length + 1;
+  let nextMine = null;
+  for(let ov = here; ov < totalPicks(); ov++)
+    if(teamOnClock(ov) === myIdx()){ nextMine = ov; break; }
+  const surv = taken ? null : Math.round(100 * survival(p, here, nextMine === null ? null : nextMine + 1));
+
+  h += '<div class="pcGrid" style="margin-top:12px">' +
+    pcStat("proj", p.proj === null ? "—" : p.proj.toFixed(0), "Season points in this league's scoring") +
+    pcStat("value", p.vorp === null ? "—" : (p.vorp > 0 ? "+" : "") + p.vorp.toFixed(0),
+           "Points above a freely available replacement") +
+    pcStat("adp", p.adp.toFixed(1)) +
+    pcStat("tier", "T" + p.tier) +
+    (surv === null ? "" : pcStat("lasts", surv + "%", "Chance he is still there at your next pick")) +
+    "</div>";
+
+  /* --- summary --- */
+  h += "<h4>Read</h4><p style=\"margin:0; font-size:13.5px\">" + esc(pcSummary(p)) + "</p>";
+
+  /* --- projections, by source --- */
+  h += "<h4>Projections</h4>";
+  const rows = [];
+  if(p.projSleeper != null) rows.push(["Sleeper", p.projSleeper]);
+  Object.keys(p.projBySrc || {}).forEach(function(k){
+    rows.push([SOURCE_LABEL[k] || k, p.projBySrc[k]]);
+  });
+  if(rows.length > 1) rows.push(["blended", p.proj]);
+  h += rows.length
+    ? rows.map(function(r){
+        return '<div class="pcRow"><span style="flex:1">' + esc(r[0]) + "</span>" +
+               '<span class="num">' + (r[1] == null ? "—" : r[1].toFixed(1)) + "</span></div>";
+      }).join("") +
+      (p.projSpread > 0
+        ? '<div class="faint" style="font-size:11.5px; margin-top:5px">Spread across sources ' +
+          p.projSpread.toFixed(1) + " points.</div>" : "")
+    : '<p class="muted" style="margin:0; font-size:13px">No projection for this player.</p>';
+
+  /* --- news, all of it --- */
+  const items = newsFor(p);
+  h += "<h4>News" + (items.length ? " (" + items.length + ")" : "") + "</h4>";
+  h += items.length
+    ? items.slice(0, 25).map(function(it){
+        const days = Math.floor((Date.now() - it.at) / 86400000);
+        const when = days <= 0 ? "today" : days === 1 ? "yesterday" : days + " days ago";
+        return '<div style="padding:7px 0; border-bottom:1px solid var(--line)">' +
+          '<div style="font-size:13px; font-weight:600">' +
+          (it.url ? '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' +
+                    esc(it.head) + "</a>" : esc(it.head)) + "</div>" +
+          (it.desc ? '<div class="faint" style="font-size:12px">' + esc(it.desc) + "</div>" : "") +
+          '<div class="faint" style="font-size:11px">' + esc(when) +
+            (it.by ? " · " + esc(it.by) : "") + " · ESPN</div></div>";
+      }).join("")
+    : '<p class="muted" style="margin:0; font-size:13px">Nothing yet. The feed only reaches ' +
+      'back a couple of days at a time, so this fills in as you open the app.</p>';
+
+  /* --- depth chart --- */
+  h += "<h4>" + esc(p.team || "Depth") + " depth at " + esc(p.pos) + "</h4>";
+  const dc = DEPTH.byTeamPos[p.team + "|" + p.pos] || [];
+  h += dc.length
+    ? dc.map(function(d){
+        const mine = normName(d.name) === normName(p.name);
+        return '<div class="pcRow' + (mine ? " pcMe" : "") + '">' +
+          '<span class="num faint" style="min-width:26px">' + esc(p.pos) + d.rank + "</span>" +
+          '<span style="flex:1">' + esc(d.name) +
+          (d.slot ? ' <span class="faint" style="font-size:11px">' + esc(d.slot) + "</span>" : "") +
+          "</span></div>";
+      }).join("")
+    : '<p class="muted" style="margin:0; font-size:13px">No depth chart for this position.</p>';
+  if(p.marketRank)
+    h += '<div class="faint" style="font-size:11.5px; margin-top:5px">The market drafts him as ' +
+         esc(p.team) + "'s " + esc(p.pos) + p.marketRank + ".</div>";
+
+  /* --- schedule --- */
+  const sched = SCHEDULE[p.team] || [];
+  const po = (LEAGUES[state.league].playoffWeeks) || [];
+  h += "<h4>Schedule</h4>";
+  h += sched.length
+    ? '<div class="pcWeeks">' + sched.map(function(opp, i){
+        const wk = i + 1;
+        const isBye = !opp;
+        return '<div class="pcWk' + (isBye ? " bye" : "") + (po.indexOf(wk) >= 0 ? " po" : "") +
+          '" title="Week ' + wk + (po.indexOf(wk) >= 0 ? " — playoffs" : "") + '">' +
+          '<span class="w">' + wk + "</span>" + esc(isBye ? "BYE" : opp) + "</div>";
+      }).join("") + "</div>" +
+      '<div class="faint" style="font-size:11.5px; margin-top:6px">Gold weeks are this ' +
+      "league's playoffs.</div>"
+    : '<p class="muted" style="margin:0; font-size:13px">No schedule for this team.</p>';
+
+  host.innerHTML = h;
+  $("#pcard").hidden = false;
+  const x = $("#pcX");
+  if(x) x.focus();
+}
+
+function closePlayer(){
+  const c = $("#pcard");
+  if(c) c.hidden = true;
+}
+
 /* ---------- Big Board ---------- */
 function renderBoard(){
   const gone = takenIds();
@@ -4746,7 +4961,7 @@ function renderBoard(){
     <tr class="${gone.has(p.id)?"gone":""} ${p.tierTop&&state.filter!=="ALL"?"tier-top":""}" data-id="${p.id}">
       <td class="stripe ${p.pos}"></td>
       <td class="num muted">${p.adp.toFixed(1)}</td>
-      <td><span class="pname">${esc(p.name)}</span>${injBadge(p)}${newsBadge(p)}${depthNote(p)}${adpGapNote(p)}</td>
+      <td><span class="pname" data-open="${p.id}" role="button" tabindex="0">${esc(p.name)}</span>${injBadge(p)}${newsBadge(p)}${depthNote(p)}${adpGapNote(p)}</td>
       <td>${posPill(p)}</td>
       <td class="faint">${p.team}</td>
       <td class="num faint">${p.bye??"—"}</td>
@@ -4989,7 +5204,7 @@ function renderDraft(){
     return `<div class="pk ${pk.team===myIdx()?"mine":""}">
       <span class="slot">${roundOf(pk.overall)}.${String(pickInRound(pk.overall)).padStart(2,"0")}</span>
       ${posPill(p)}
-      <span style="flex:1; min-width:0">${esc(p.name)}</span>
+      <span style="flex:1; min-width:0" class="pname" data-open="${p.playerId!==undefined?p.playerId:p.id}" role="button" tabindex="0">${esc(p.name)}</span>
       <span class="faint" style="font-size:11px" title="${esc(teamName(pk.team))}">${pk.team===myIdx()?"you":esc(teamTag(pk.team))}</span>
     </div>`;
   }).join("") || `<p class="muted" style="margin:0; font-size:13px">No picks yet.</p>`;
@@ -6697,6 +6912,20 @@ if(mflRes && !mflRes.error){
 buildStamp();
 /* Another tab saved. Take its view of the leagues we are not looking at, and
    redraw if it touched the one we are. */
+document.addEventListener("click", function(e){
+  const t = e.target.closest("[data-open]");
+  if(t){ e.preventDefault(); openPlayer(t.dataset.open); return; }
+  if(e.target.id === "pcardBack" || e.target.id === "pcX") closePlayer();
+});
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape" && !$("#pcard").hidden){ e.preventDefault(); closePlayer(); }
+  if(e.key === "Enter" || e.key === " "){
+    const t = document.activeElement && document.activeElement.closest
+      ? document.activeElement.closest("[data-open]") : null;
+    if(t){ e.preventDefault(); openPlayer(t.dataset.open); }
+  }
+});
+
 window.addEventListener("storage", function(e){
   if(e.key !== LS) return;
   adoptOtherTabs();
