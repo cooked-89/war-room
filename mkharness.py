@@ -2396,6 +2396,84 @@ harness = r'''
     NEWS=[]; saveNews(); indexNews(); renderNews();
   });
 
+  step("a-pick-can-be-recorded-from-the-big-board",function(){
+    /* The board is the tab you are looking at when a name is called - tiers, value
+       bars, news - and picks could only be recorded from the Draft tab. */
+    applyLeague("mfl12"); setDraftOrder(null);
+    state.picks=[]; state.sim=false;
+    document.querySelector('[data-p="board"]').click();
+    var btn = document.querySelector('#boardBody [data-draft]');
+    if(!btn) throw new Error("no draft button on the board");
+    var id = +btn.dataset.draft;
+    var name = byId.get(id).name;
+    btn.click();
+    if(state.picks.length !== 1)
+      throw new Error("clicking the board button recorded " + state.picks.length + " picks");
+    if(byId.get(state.picks[0].playerId).name !== name)
+      throw new Error("recorded the wrong player");
+    /* and once he is gone the button must not still be offered */
+    renderBoard();
+    var still = document.querySelector('#boardBody [data-draft="' + id + '"]');
+    if(still) throw new Error("still offering to draft a player who is gone");
+    state.picks=[]; state.sim=false;
+  });
+
+  step("the-same-player-cannot-be-drafted-twice",function(){
+    /* Three copies of the record-a-pick sequence had already drifted; the guards now
+       live in the one path they all share. */
+    applyLeague("mfl12"); setDraftOrder(null);
+    state.picks=[]; state.sim=false;
+    var p = PLAYERS.slice().sort(function(a,b){ return a.adp-b.adp; })[0];
+    var first = draftPlayer(p.id);
+    if(!first || first.error) throw new Error("first draft failed: " + (first && first.error));
+    var second = draftPlayer(p.id);
+    if(!second || !second.error) throw new Error("drafted the same player twice");
+    if(state.picks.length !== 1)
+      throw new Error("board holds " + state.picks.length + " picks after a duplicate");
+    state.picks=[]; state.sim=false;
+  });
+
+  step("a-full-draft-refuses-another-pick",function(){
+    applyLeague("mfl12"); setDraftOrder(null);
+    state.picks=[]; state.sim=true; state.seed="fullup";
+    var need=state.teams*state.rounds, g=0;
+    runSim();
+    while(state.picks.length<need && g++<1200){
+      var r=recommend(); if(!r.length) break; makePick(r[0].p.id); runSim();
+    }
+    var spare = PLAYERS.filter(function(x){ return !takenIds().has(x.id); })[0];
+    if(spare){
+      var res = draftPlayer(spare.id);
+      if(!res || !res.error) throw new Error("accepted a pick into a full draft");
+    }
+    if(state.picks.length !== need)
+      throw new Error("draft length changed to " + state.picks.length);
+    state.picks=[]; state.sim=false;
+  });
+
+  step("the-panel-offers-to-draft-him-and-then-does",function(){
+    applyLeague("mfl12"); setDraftOrder(null);
+    state.picks=[]; state.sim=false;
+    var p = PLAYERS.slice().sort(function(a,b){ return a.adp-b.adp; })[3];
+    openPlayer(p.id);
+    var btn = document.querySelector('#pcardBody [data-draft]');
+    if(!btn) throw new Error("panel offers no way to draft him");
+    btn.click();
+    if(state.picks.length !== 1) throw new Error("panel button recorded nothing");
+    if(byId.get(state.picks[0].playerId).id !== p.id)
+      throw new Error("panel drafted somebody else");
+    if(getComputedStyle(document.getElementById("pcard")).display !== "none")
+      throw new Error("panel stayed open over the board after drafting");
+    /* reopening him must now show he is gone, and offer nothing */
+    openPlayer(p.id);
+    if(document.querySelector('#pcardBody [data-draft]'))
+      throw new Error("panel still offers to draft a player already taken");
+    if(document.getElementById("pcardBody").textContent.indexOf("taken") < 0)
+      throw new Error("panel does not say he is gone");
+    closePlayer();
+    state.picks=[]; state.sim=false;
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */

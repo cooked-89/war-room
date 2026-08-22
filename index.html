@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-22 16:25 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-22 17:09 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -296,6 +296,10 @@ tr.tier-top td{border-top:2px solid var(--line-2)}
 .stripe.QB{background:var(--qb)} .stripe.RB{background:var(--rb)} .stripe.WR{background:var(--wr)}
 .stripe.TE{background:var(--te)} .stripe.PK{background:var(--k)} .stripe.DEF{background:var(--def)}
 .tiermark{font-family:var(--mono); font-size:11px; color:var(--ink-3)}
+/* The board is where you are looking when a name is called, so the pick can be
+   recorded without leaving it. */
+.iconbtn.take{color:var(--rb-solid); font-weight:700; font-size:15px; line-height:1}
+.iconbtn.take:hover{background:var(--rb-solid); color:var(--on-solid)}
 .starred{color:var(--gold)}
 .iconbtn{background:none; border:0; padding:2px 4px; font-size:13px; line-height:1; color:var(--ink-3)}
 .iconbtn:hover{color:var(--ink)}
@@ -4778,6 +4782,26 @@ function tagChips(p){
   return p.tags.map(t=>`<span class="chip ${t}">${t}</span>`).join(" ");
 }
 
+/* Every way of recording a pick ends up here. There were three near-copies of
+   this sequence and they had already drifted, so the search box was cleared from
+   one of them and not the others. The guards belong in one place too: a player
+   already gone cannot be taken again, and a full draft takes nothing at all. */
+function draftPlayer(id){
+  const pid = (typeof id === "string" && /^off:/.test(id)) ? id : +id;
+  const p = byId.get(pid);
+  if(!p) return {error:"No such player."};
+  if(state.picks.length >= totalPicks()) return {error:"This draft is already full."};
+  if(takenIds().has(p.id)) return {error:esc(p.name) + " is already gone."};
+
+  const forTeam = teamOnClock(state.picks.length);
+  makePick(p.id);
+  const box = $("#dsearch");
+  if(box) box.value = "";           // the next pick starts from a clean search
+  runSim(); save();
+  renderCliffs(); renderSOS(); renderDraftDiary(); renderAll();
+  return {ok:true, team:forTeam, player:p};
+}
+
 /* ---------- one player, everything we hold ---------- */
 function pcStat(k, v, title){
   return '<div class="pcStat"' + (title ? ' title="' + esc(title) + '"' : "") +
@@ -4837,6 +4861,14 @@ function openPlayer(id){
         : "") +
     "</div></div>" +
     '<button class="pcClose" id="pcX" aria-label="Close">&times;</button></div>';
+
+  /* Straight from the panel, since reading about him is when you decide. */
+  if(!taken && state.picks.length < totalPicks()){
+    const onClock = teamOnClock(state.picks.length);
+    h += '<button class="btn primary" data-draft="' + p.id +
+      '" style="width:100%; margin-top:12px">Draft ' + esc(p.name) +
+      (onClock === myIdx() ? "" : " for " + esc(teamName(onClock))) + "</button>";
+  }
 
   /* --- the numbers --- */
   const here = state.picks.length + 1;
@@ -4974,6 +5006,8 @@ function renderBoard(){
       <td>${(p.pos==="PK"||p.pos==="DEF")?'<span class="faint">—</span>':sosCell(p.team,"playoff")}</td>
       <td>${tagChips(p)}</td>
       <td style="white-space:nowrap; text-align:right">
+        ${gone.has(p.id) ? "" :
+          `<button class="iconbtn take" data-draft="${p.id}" title="Record this pick">+</button>`}
         <button class="iconbtn star ${state.star.has(p.id)?"on":""}" data-star="${p.id}" title="Watchlist">${state.star.has(p.id)?"★":"☆"}</button>
         <button class="iconbtn avoid ${state.avoid.has(p.id)?"on":""}" data-avoid="${p.id}" title="Do not draft">⊘</button>
       </td>
@@ -6206,15 +6240,19 @@ $("#boardBody").addEventListener("click",e=>{
   if(a){ const id=+a.dataset.avoid; state.avoid.has(id)?state.avoid.delete(id):state.avoid.add(id); save(); renderBoard(); }
 });
 
-document.getElementById("queueOut").addEventListener("click",function(e){
-  const b=e.target.closest("[data-draft]"); if(!b) return;
-  makePick(+b.dataset.draft); runSim(); save(); renderAll();
-});
-$("#recs").addEventListener("click",e=>{
-  const b=e.target.closest("[data-draft]"); if(!b) return;
-  makePick(+b.dataset.draft);
-  $("#dsearch").value="";          // clear the search so the next pick starts fresh
-  runSim(); save(); renderAll();
+/* Board rows, the queue, the recommendation list and the player panel all send
+   the same thing, so one listener serves them all. */
+document.addEventListener("click", function(e){
+  const b = e.target.closest("[data-draft]");
+  if(!b) return;
+  e.preventDefault();
+  const res = draftPlayer(b.dataset.draft);
+  if(res && res.error){
+    const bar = $("#syncMsg");
+    if(bar) bar.innerHTML = '<span class="warn">' + res.error + "</span>";
+    return;
+  }
+  if(!$("#pcard").hidden) closePlayer();   // drafted from the panel; get out of the way
 });
 $("#dsearch").addEventListener("input",renderDraft);
 $("#sortby").addEventListener("click",function(e){
