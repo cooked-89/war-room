@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-21 15:15 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-22 14:22 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -3318,9 +3318,73 @@ const state = {
 };
 function reseed(){ state.seed = String(Math.floor(Math.random()*1e9)); }
 
+/* What another tab has written since we loaded. A tab speaks for the league it is
+   looking at and for nothing else, so everything outside that is taken from disk. */
+function mergeForSave(){
+  let disk = null;
+  try{ disk = JSON.parse(localStorage.getItem(LS) || "null"); }catch(e){ disk = null; }
+  if(!disk || typeof disk !== "object") return null;
+
+  const mine = state.league;
+  const byLeague = Object.assign({}, disk.byLeague || {});
+  Object.keys(state.byLeague || {}).forEach(function(k){
+    const ours = state.byLeague[k], theirs = byLeague[k];
+    if(k === mine){ byLeague[k] = ours; return; }        // we own the one we are on
+    if(!theirs){ byLeague[k] = ours; return; }
+    /* Otherwise the newer write wins, and an unstamped one is older by definition. */
+    byLeague[k] = ((ours && ours.at) || 0) > ((theirs && theirs.at) || 0) ? ours : theirs;
+  });
+
+  /* Same rule for the draft order, and the same rule means CLEARING counts: if this
+     tab dropped the order for the league it is on, taking the one still on disk
+     would resurrect it and re-attribute every pick already recorded. */
+  const orderByLeague = Object.assign({}, disk.orderByLeague || {}, state.orderByLeague || {});
+  if(!(state.orderByLeague || {})[mine]) delete orderByLeague[mine];
+
+  /* Not per-league, so union rather than replace - a star set in another tab is
+     still something he did. */
+  const union = function(a, b){
+    const out = new Set(Array.isArray(a) ? a : []);
+    (Array.isArray(b) ? b : []).forEach(function(x){ out.add(x); });
+    return [...out];
+  };
+  const offSeen = {};
+  (disk.offBoard || []).concat([...OFFBOARD.values()].map(function(r){
+    return {id:r.id, name:r.name, pos:r.pos, team:r.team};
+  })).forEach(function(r){ if(r && r.id) offSeen[r.id] = r; });
+
+  return {byLeague: byLeague, orderByLeague: orderByLeague,
+          star: union(disk.star, [...state.star]),
+          avoid: union(disk.avoid, [...state.avoid]),
+          offBoard: Object.keys(offSeen).map(function(k){ return offSeen[k]; })};
+}
+
+/* Another tab wrote. Adopt its view of every league except the one we are on,
+   so our next save does not carry a stale picture of the rest. */
+function adoptOtherTabs(){
+  const merged = mergeForSave();
+  if(!merged) return;
+  Object.keys(merged.byLeague).forEach(function(k){
+    if(k !== state.league) state.byLeague[k] = merged.byLeague[k];
+  });
+  state.orderByLeague = merged.orderByLeague;
+  merged.star.forEach(function(x){ state.star.add(x); });
+  merged.avoid.forEach(function(x){ state.avoid.add(x); });
+}
+
 function save(){
   try{
     stashLeague();
+    const merged = mergeForSave();
+    if(merged){
+      state.byLeague = merged.byLeague;
+      state.orderByLeague = merged.orderByLeague;
+      merged.star.forEach(function(x){ state.star.add(x); });
+      merged.avoid.forEach(function(x){ state.avoid.add(x); });
+      merged.offBoard.forEach(function(r){
+        if(!OFFBOARD.has(r.id)) OFFBOARD.set(r.id, makeOffBoard(r.id, r.name, r.pos, r.team));
+      });
+    }
     localStorage.setItem(LS, JSON.stringify({
       league:state.league, sortBy:state.sortBy, useLiveAdp:state.useLiveAdp,
       adpSource:state.adpSource, projSource:state.projSource, liveOn:state.liveOn,
@@ -6420,7 +6484,7 @@ const slotSel=$("#slot");
 function stashLeague(){
   if(!state.league) return;
   state.byLeague[state.league] = {
-    picks: state.picks.slice(), seed: state.seed, slot: state.slot
+    picks: state.picks.slice(), seed: state.seed, slot: state.slot, at: Date.now()
   };
 }
 
@@ -6631,6 +6695,14 @@ if(mflRes && !mflRes.error){
   try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
 }
 buildStamp();
+/* Another tab saved. Take its view of the leagues we are not looking at, and
+   redraw if it touched the one we are. */
+window.addEventListener("storage", function(e){
+  if(e.key !== LS) return;
+  adoptOtherTabs();
+  renderAll();
+});
+
 if(window.LIVE_CAPABLE) setTimeout(function(){ refreshLive(true); }, 300);
 if(window.LIVE_CAPABLE) setTimeout(refreshNews, 900);
 /* Re-check on wake: a laptop shut for two days should not open a stale board. */

@@ -1797,6 +1797,11 @@ harness = r'''
         });
       });
     });
+    /* state.rounds is not reset by applyLeague, and load() persists it, so leaving
+       CBS on twelve rounds quietly shortens every draft that runs after this. */
+    Object.keys(LEAGUES).forEach(function(k){
+      applyLeague(k); state.rounds = LEAGUES[k].rounds;
+    });
     state.picks=[]; state.sim=false;
     applyLeague("sleeper12");
   });
@@ -1814,6 +1819,7 @@ harness = r'''
        in ADP than B, and NEITHER can survive to my next pick, then A must be ranked
        first. There is no version of waiting that gets me A. */
     applyLeague("mfl12");
+    setDraftOrder(null);          // judge the snake, not whatever order a test left
     state.picks=[]; state.sim=false; state.slot=3;
     /* Clear the two most valuable players, which is the situation at his real third
        pick: the elite backs are gone and the choice is the next back against the top
@@ -2142,6 +2148,89 @@ harness = r'''
     if(had) root.setAttribute("data-theme", had); else root.removeAttribute("data-theme");
     if(worst.length)
       throw new Error("below 4.5:1 - " + worst.join(", "));
+  });
+
+  step("a-second-tab-cannot-erase-the-first-tabs-draft",function(){
+    /* Sleeper at 6:30 and ESPN at 7:30 on the 28th means two tabs on one
+       localStorage. save() used to write the whole object, so the tab that saved
+       last replaced the other tab's board with its own stale copy - four ESPN picks
+       became zero the moment the Sleeper tab recorded one. A tab speaks for the
+       league it is looking at and for nothing else. */
+    localStorage.removeItem(LS);
+
+    /* Tab A: drafts in Sleeper, saves. */
+    load(); applyLeague("sleeper12"); state.rounds = LEAGUES.sleeper12.rounds;
+    state.picks=[]; state.sim=false;
+    var byAdp=PLAYERS.slice().sort(function(a,b){return a.adp-b.adp;});
+    applyNames(byAdp.slice(0,3).map(function(p){ return p.name; }));
+    save();
+    var tabAMemory = JSON.parse(JSON.stringify(state.byLeague));
+
+    /* Tab B: opens later, drafts in ESPN, saves. */
+    load(); applyLeague("espn10"); state.rounds = LEAGUES.espn10.rounds;
+    state.picks=[]; state.sim=false;
+    applyNames(byAdp.slice(0,4).map(function(p){ return p.name; }));
+    save();
+    var mid = JSON.parse(localStorage.getItem(LS));
+    if((mid.byLeague.espn10||{picks:[]}).picks.length !== 4)
+      throw new Error("setup: espn did not save");
+
+    /* Tab A never saw tab B, and now records another pick. */
+    state.byLeague = tabAMemory;
+    state.league = "sleeper12";
+    state.picks = state.byLeague.sleeper12.picks.slice();
+    makePick(byAdp[5].id);
+    save();
+
+    var after = JSON.parse(localStorage.getItem(LS));
+    if((after.byLeague.espn10||{picks:[]}).picks.length !== 4)
+      throw new Error("the other tab's ESPN board was clobbered: " +
+        (after.byLeague.espn10||{picks:[]}).picks.length + " picks left");
+    if((after.byLeague.sleeper12||{picks:[]}).picks.length !== 4)
+      throw new Error("this tab lost its own board");
+    /* load() restores orderByLeague too, so leaving one behind changes who is on the
+       clock for every test after this. */
+    localStorage.removeItem(LS);
+    state.byLeague={}; state.orderByLeague={}; setDraftOrder(null);
+    state.picks=[]; state.sim=false;
+  });
+
+  step("watchlist-survives-the-other-tab",function(){
+    /* Stars are not per-league, so replacing rather than merging loses whatever the
+       background tab starred. */
+    localStorage.removeItem(LS);
+    load(); applyLeague("sleeper12"); state.rounds = LEAGUES.sleeper12.rounds;
+    state.star = new Set(); state.avoid = new Set();
+    var ids = PLAYERS.slice(0,4).map(function(p){ return p.id; });
+    state.star.add(ids[0]); save();
+    /* Another tab stars someone else and saves. */
+    var disk = JSON.parse(localStorage.getItem(LS));
+    disk.star = [ids[1]];
+    localStorage.setItem(LS, JSON.stringify(disk));
+    /* This tab saves again without ever having seen that. */
+    save();
+    var after = JSON.parse(localStorage.getItem(LS));
+    if(after.star.indexOf(ids[0]) < 0) throw new Error("lost this tab's star");
+    if(after.star.indexOf(ids[1]) < 0) throw new Error("lost the other tab's star");
+    state.star = new Set(); state.avoid = new Set();
+    localStorage.removeItem(LS);
+    state.byLeague={}; state.orderByLeague={}; setDraftOrder(null);
+  });
+
+  step("live-sync-resumes-when-you-come-back-to-that-league",function(){
+    /* He will switch to ESPN to type a pick and switch back. Sync stops on the way
+       out, so it has to start again on the way in or the board silently freezes
+       while the Sleeper draft carries on without him. */
+    setDraftId("sleeper12","999");
+    applyLeague("sleeper12");
+    state.liveOn = true;
+    applyLeague("espn10");
+    if(LIVE_SYNC.timer) throw new Error("poller followed us to the other league");
+    applyLeague("sleeper12");
+    var box = document.getElementById("liveOn");
+    if(!box.checked) throw new Error("came back with live sync switched off");
+    liveSyncStop("");
+    state.liveOn = false;
   });
 
   step("only-one-poller-exists",function(){
