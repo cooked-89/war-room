@@ -2333,6 +2333,69 @@ harness = r'''
     applyLeague("mfl12");
   });
 
+  step("no-board-carries-the-same-player-twice",function(){
+    /* Topping the boards up for CBS's roster rules, I deduped with a naive
+       normaliser while the app's normName also strips Jr/Sr/III - so "Kyle Pitts"
+       did not look like "Kyle Pitts Sr." to the script and did to the app. Both
+       shipped, at two ADPs, draftable twice as two ids. If the matcher cannot tell
+       two rows apart, a draft cannot either. */
+    Object.keys(LEAGUES).forEach(function(lg){
+      applyLeague(lg);
+      var seen = {}, dupes = [];
+      PLAYERS.forEach(function(p){
+        var k = normName(p.name) + "|" + p.pos;
+        if(seen[k]) dupes.push(p.name + " " + p.pos);
+        seen[k] = 1;
+      });
+      if(dupes.length)
+        throw new Error(lg + " lists twice: " + dupes.slice(0,4).join(", "));
+    });
+  });
+
+  step("every-board-player-has-a-team-and-a-schedule",function(){
+    /* A player with no team cannot be scheduled, cannot be graded for strength of
+       schedule, and in a kicker's case is not draftable value anyway. */
+    Object.keys(LEAGUES).forEach(function(lg){
+      applyLeague(lg);
+      var bad = PLAYERS.filter(function(p){ return !p.team || !SCHEDULE[p.team]; });
+      if(bad.length)
+        throw new Error(lg + ": " + bad.length + " without a schedule, e.g. " + bad[0].name);
+    });
+  });
+
+  step("a-finished-draft-recommends-nothing",function(){
+    applyLeague("mfl12");
+    setDraftOrder(null);
+    state.picks=[]; state.sim=true; state.seed="done";
+    var need=state.teams*state.rounds, g=0;
+    runSim();
+    while(state.picks.length<need && g++<1200){
+      var r=recommend(); if(!r.length) break; makePick(r[0].p.id); runSim();
+    }
+    if(state.picks.length !== need)
+      throw new Error("draft stalled at "+state.picks.length+" of "+need);
+    if(recommend().length)
+      throw new Error("still offering players for a draft that is over");
+    state.picks=[]; state.sim=false;
+  });
+
+  await astep("a-news-outage-does-not-look-like-a-quiet-day",async function(){
+    /* refreshNews swallowed every error, so ESPN going away, blocking us or changing
+       shape all rendered as "No news loaded yet" - the same thing an empty feed says.
+       An audit sweep hit exactly that and it took a separate probe to learn why. */
+    NEWS=[]; saveNews(); indexNews();
+    var real=window.fetch, cap=window.LIVE_CAPABLE;
+    window.LIVE_CAPABLE = true;
+    window.fetch=function(){ return Promise.reject(new Error("Failed to fetch")); };
+    try{ await refreshNews(); }
+    finally { window.fetch=real; window.LIVE_CAPABLE=cap; }
+    renderNews();
+    var t=document.getElementById("newsOut").textContent;
+    if(t.indexOf("Could not reach") < 0)
+      throw new Error("an outage reads as an empty feed: " + t.slice(0,70));
+    NEWS=[]; saveNews(); indexNews(); renderNews();
+  });
+
   step("only-one-poller-exists",function(){
     /* Two implementations were once bound to the same checkbox, both polling and both
        writing state.picks. Anything named like a second one is a regression. */

@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script>window.LIVE_CAPABLE = true;   /* set before the app boots: this build can reach the network */
-window.BUILD = "2026-08-22 15:32 UTC";       /* stamped at build time; shown in the footer */</script>
+window.BUILD = "2026-08-22 16:25 UTC";       /* stamped at build time; shown in the footer */</script>
 <style>
   html{background:#F7F6F3}
   @media (prefers-color-scheme:dark){html{background:#12150F}}
@@ -1343,7 +1343,6 @@ Andy Borregales|PK|NE|165.8
 Charlie Smyth|PK|NO|166.7
 Ryan Fitzgerald|PK|CAR|167.6
 Jason Sanders|PK|NYJ|168.5
-Jake Moody|PK||169.4
 Jake Elliott|PK|PHI|170.3
 Chad Ryland|PK|ARI|171.2
 Baltimore Ravens Defense|DEF|BAL|172.1
@@ -1361,8 +1360,6 @@ Malik Willis|QB|MIA|181.9
 C.J. Stroud|QB|HOU|182.7
 Bryce Young|QB|CAR|183.5
 Cam Ward|QB|TEN|184.3
-Harold Fannin|TE|CLE|185.1
-Kyle Pitts|TE|ATL|185.9
 Brenton Strange|TE|JAX|186.7
 T.J. Hockenson|TE|MIN|187.5
 AJ Barner|TE|SEA|188.3
@@ -1585,7 +1582,6 @@ Andy Borregales|PK|NE|171.8
 Charlie Smyth|PK|NO|172.7
 Ryan Fitzgerald|PK|CAR|173.6
 Jason Sanders|PK|NYJ|174.5
-Jake Moody|PK||175.4
 Jake Elliott|PK|PHI|176.3
 Chad Ryland|PK|ARI|177.2
 New York Giants Defense|DEF|NYG|178.1
@@ -1600,8 +1596,6 @@ Carolina Panthers Defense|DEF|CAR|185.3
 Cincinnati Bengals Defense|DEF|CIN|186.2
 Bryce Young|QB|CAR|187.0
 Cam Ward|QB|TEN|187.8
-Harold Fannin|TE|CLE|188.6
-Kyle Pitts|TE|ATL|189.4
 T.J. Hockenson|TE|MIN|190.2
 Oronde Gadsden|TE|LAC|191.0
 Juwan Johnson|TE|NO|191.8
@@ -1819,7 +1813,6 @@ Andy Borregales|PK|NE|159.4
 Charlie Smyth|PK|NO|160.3
 Ryan Fitzgerald|PK|CAR|161.2
 Jason Sanders|PK|NYJ|162.1
-Jake Moody|PK||163.0
 Jake Elliott|PK|PHI|163.9
 Chad Ryland|PK|ARI|164.8
 Kansas City Chiefs Defense|DEF|KC|165.7
@@ -1834,8 +1827,6 @@ Tampa Bay Buccaneers Defense|DEF|TB|172.9
 Carolina Panthers Defense|DEF|CAR|173.8
 Cincinnati Bengals Defense|DEF|CIN|174.7
 New Orleans Saints Defense|DEF|NO|175.6
-Harold Fannin|TE|CLE|176.4
-Kyle Pitts|TE|ATL|177.2
 T.J. Hockenson|TE|MIN|178.0
 Oronde Gadsden|TE|LAC|178.8
 Juwan Johnson|TE|NO|179.6
@@ -3719,8 +3710,11 @@ function mergeNews(items){
   return added;
 }
 
+/* Why the last attempt failed, so an outage does not look like an empty feed. */
+let NEWS_ERR = "";
+
 async function refreshNews(){
-  if(!window.LIVE_CAPABLE) return 0;
+  if(!window.LIVE_CAPABLE){ NEWS_ERR = "This build cannot fetch live data."; return 0; }
   try{
     const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50",
                           {cache:"no-store"});
@@ -3740,11 +3734,18 @@ async function refreshNews(){
               at: Date.parse(a.published || a.lastModified || "") || Date.now(),
               who: who};
     }).filter(function(x){ return x.id && x.head; });
+    NEWS_ERR = "";
     const added = mergeNews(items);
     renderNews();
     if(added) renderAll();
     return added;
-  }catch(e){ return 0; }
+  }catch(e){
+    /* Silence here would be indistinguishable from a quiet news day, and the whole
+       point of the panel is that it is showing you everything there is. */
+    NEWS_ERR = e && e.message ? e.message : "could not reach ESPN";
+    renderNews();
+    return 0;
+  }
 }
 
 /* Items about a player, newest first. */
@@ -4981,6 +4982,9 @@ function renderBoard(){
 
 /* ---------- Draft ---------- */
 function recommend(){
+  /* A finished draft has nothing to recommend. makePick already refuses, so this
+     was harmless, but the panel kept offering players for a draft that is over. */
+  if(state.picks.length >= totalPicks()) return [];
   const roster = rosterOf(myIdx());
   const round = roundOf(state.picks.length);
   const avail = available();
@@ -6040,7 +6044,10 @@ function renderNews(){
   if(!list.length){
     el.innerHTML = '<p class="muted" style="margin:0; font-size:13px">' +
       (NEWS.length ? "Nothing here mentions a player on this board yet."
-                   : "No news loaded yet — press Refresh.") + "</p>";
+                   : (NEWS_ERR
+                        ? '<span class="warn">Could not reach ESPN — ' + esc(NEWS_ERR) +
+                          ". Anything already gathered is still here.</span>"
+                        : "No news loaded yet — press Refresh.")) + "</p>";
     return;
   }
 
