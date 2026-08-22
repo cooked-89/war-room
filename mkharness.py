@@ -2261,12 +2261,19 @@ harness = r'''
     setDraftOrder(null);
     state.picks=[]; state.sim=false;
     NEWS=[]; indexNews();
+    document.querySelector('[data-p="board"]').click();   // not the Draft tab
     var p = PLAYERS.filter(function(x){ return x.pos==="RB" && x.team && x.proj; })[0];
     if(!p) throw new Error("no suitable player to open");
     mergeNews([{id:"pp1", head:"A story about him", desc:"Details.", by:"A Reporter",
                 url:"https://example.invalid/x", at:Date.now()-3600000, who:[p.name]}]);
     openPlayer(p.id);
-    if(document.getElementById("pcard").hidden) throw new Error("panel did not open");
+    /* The property is not the effect: an explicit display:flex overrode the hidden
+       attribute, and asserting .hidden passed while the panel sat on screen. And it
+       was nested inside the Draft section, so it rendered nowhere else. */
+    var card = document.getElementById("pcard");
+    if(card.closest("[hidden]") && card.closest("[hidden]") !== card)
+      throw new Error("panel lives inside a hidden panel: " + card.parentElement.id);
+    if(getComputedStyle(card).display === "none") throw new Error("panel did not open");
     var t = document.getElementById("pcardBody").textContent;
     [p.name, "Read", "Projections", "News", "depth at", "Schedule"].forEach(function(need){
       if(t.indexOf(need) < 0) throw new Error("panel missing: " + need);
@@ -2276,7 +2283,8 @@ harness = r'''
     if(t.indexOf("NaN") >= 0) throw new Error("NaN rendered in the panel");
     if(t.indexOf("[object Object]") >= 0) throw new Error("raw object rendered");
     closePlayer();
-    if(!document.getElementById("pcard").hidden) throw new Error("panel did not close");
+    if(getComputedStyle(document.getElementById("pcard")).display !== "none")
+      throw new Error("panel did not actually close");
     NEWS=[]; saveNews(); indexNews();
   });
 
